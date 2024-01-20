@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "cardiacsim.C": "cpp",
+        "cmdLine.C": "cpp"
+    }
+}

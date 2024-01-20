@@ -149,7 +149,7 @@ void simulate(double **E, double **E_prev, double **R,
         // wait for boundary comms
     }
     MPI_Waitall(comm_wait_count, requests, stats);
-    cout << "Comms done: " << mpi_rank << endl;
+    // cout << "Comms done: " << mpi_rank << endl;
 
     // if (mpi_rank == 0)
     // {
@@ -329,14 +329,17 @@ int main(int argc, char **argv)
     double dt = (dte < dtr) ? 0.95 * dte : 0.95 * dtr;
     double alpha = d * dt / (dx * dx);
 
-    cout << "Grid Size       : " << n << endl;
-    cout << "Duration of Sim : " << T << endl;
-    cout << "Time step dt    : " << dt << endl;
-    cout << "Process geometry: " << px << " x " << py << endl;
-    if (no_comm)
-        cout << "Communication   : DISABLED" << endl;
-
-    cout << endl;
+    if (mpi_rank == 0)
+    {
+        cout << "Grid Size       : " << n << endl;
+        cout << "Duration of Sim : " << T << endl;
+        cout << "Time step dt    : " << dt << endl;
+        cout << "Process geometry: " << px << " x " << py << endl;
+        if (no_comm)
+            cout << "Communication   : DISABLED" << endl;
+        cout << endl;
+        cout << "Plot freq " << plot_freq << endl;
+    }
 
     // Start the timer
     double t0 = getTime();
@@ -346,7 +349,6 @@ int main(int argc, char **argv)
     double t = 0.0;
     // Integer timestep number
     int niter = 0;
-
     while (t < T)
     {
 
@@ -381,7 +383,11 @@ int main(int argc, char **argv)
             int k = (int)(t / plot_freq);
             if ((t - k * plot_freq) < dt)
             {
-                splot(E, t, niter, m + 2, n + 2);
+                // splot(E, t, niter, m + 2, n + 2);
+                if (mpi_rank == 0)
+                {
+                    splot(E, t, niter, m + 2, n + 2);
+                }
             }
         }
     } // end of while loop

@@ -1,0 +1,18 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "~/.openmpi/bin",
+                "~/.openmpi/lib",
+                "~/.openmpi/include"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/lib/ccache/clang",
+            "cStandard": "c17",
+            "intelliSenseMode": "linux-clang-x64"
+        }
+    ],
+    "version": 4
+}
