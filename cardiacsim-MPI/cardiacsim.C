@@ -220,22 +220,27 @@ void simulate(double **E, double **E_prev, double **R,
     {
         int counts[py];
         int displacements[py];
-        int displacement = 1;
+        int displacement = 1 * array_size_0;
         for (int i = 0; i < py; i++)
         {
             displacements[i] = displacement;
-            displacement += regular_computation_size;
+            displacement += regular_computation_size * array_size_0;
             if (i == py - 1)
             {
-                counts[i] = last_cell_computation_size;
+                counts[i] = last_cell_computation_size * array_size_0;
             }
             else
             {
-                counts[i] = regular_computation_size;
+                counts[i] = regular_computation_size * array_size_0;
+            }
+
+            if (mpi_rank == 0)
+            {
+                cout << "d: " << displacements[i] << " c: " << counts[i] << endl;
             }
         }
-        MPI_Gatherv(E[0], computation_size, MPI_DOUBLE, E[0], counts, displacements, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        MPI_Gatherv(R[0], computation_size, MPI_DOUBLE, R[0], counts, displacements, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        MPI_Gatherv(&E[0] + displacements[mpi_rank], computation_size * array_size_0, MPI_DOUBLE, E[0], counts, displacements, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        MPI_Gatherv(&R[0] + displacements[mpi_rank], computation_size * array_size_0, MPI_DOUBLE, R[0], counts, displacements, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     }
 
     // if (mpi_rank == 0)
