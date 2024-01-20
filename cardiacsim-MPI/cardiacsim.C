@@ -233,15 +233,12 @@ void simulate(double **E, double **E_prev, double **R,
             {
                 counts[i] = regular_computation_size * array_size_0;
             }
-
-            if (mpi_rank == 0)
-            {
-                cout << "d: " << displacements[i] << " c: " << counts[i] << endl;
-            }
         }
-        MPI_Gatherv(&E[0] + displacements[mpi_rank], computation_size * array_size_0, MPI_DOUBLE, E[0], counts, displacements, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        MPI_Gatherv(&R[0] + displacements[mpi_rank], computation_size * array_size_0, MPI_DOUBLE, R[0], counts, displacements, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        MPI_Gatherv(E[0] + displacements[mpi_rank], computation_size * array_size_0, MPI_DOUBLE, E[0], counts, displacements, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        MPI_Gatherv(R[0] + displacements[mpi_rank], computation_size * array_size_0, MPI_DOUBLE, R[0], counts, displacements, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     }
+
+    MPI_Barrier(MPI_COMM_WORLD);
 
     // if (mpi_rank == 0)
     // {
@@ -388,6 +385,7 @@ int main(int argc, char **argv)
             int k = (int)(t / plot_freq);
             if ((t - k * plot_freq) < dt)
             {
+                cout << "r " << mpi_rank << " g " << gather << endl;
                 // splot(E, t, niter, m + 2, n + 2);
                 if (mpi_rank == 0)
                 {
