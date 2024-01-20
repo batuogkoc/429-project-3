@@ -85,7 +85,7 @@ extern "C"
 }
 void cmdLine(int argc, char *argv[], double &T, int &n, int &px, int &py, int &plot_freq, int &no_comm, int &num_threads);
 
-void simulate(double **E, double **E_prev, double **R,
+void simulate(double **E, double **E_prev, double **E_gather, double **R,
               const double alpha, const int n, const int m, const double kk,
               const double dt, const double a, const double epsilon,
               const double M1, const double M2, const double b, const int px, const int py, bool gather)
@@ -146,41 +146,10 @@ void simulate(double **E, double **E_prev, double **R,
         // south incoming
         MPI_Irecv(E_prev[(mpi_rank + 1) * regular_computation_size + 1], array_size_1, MPI_DOUBLE, south_rank, 0, MPI_COMM_WORLD, &requests[comm_wait_count]);
         comm_wait_count++;
-        // wait for boundary comms
     }
+    // wait for boundary comms
     MPI_Waitall(comm_wait_count, requests, stats);
-    // cout << "Comms done: " << mpi_rank << endl;
 
-    // if (mpi_rank == 0)
-    // {
-    //     int curr_row_idx = 0;
-    //     // master sends the data to the other cores
-    //     for (int pid = 1; pid < py; pid++)
-    //     {
-    //         if (pid < py - 1)
-    //         {
-    //             MPI_Send(E_prev[pid * regular_computation_size], (regular_computation_size + 2) * array_size_1, MPI_DOUBLE, pid, 0, MPI_COMM_WORLD);
-    //         }
-    //         else
-    //         {
-    //             // last cell
-    //             MPI_Send(E_prev[pid * regular_computation_size], (last_cell_computation_size + 2) * array_size_1, MPI_DOUBLE, pid, 0, MPI_COMM_WORLD);
-    //         }
-    //     }
-    // }
-    // else
-    // {
-    //     if (mpi_rank < py - 1)
-    //     {
-    //         MPI_Recv(E_prev[mpi_rank * regular_computation_size], (regular_computation_size + 2) * array_size_1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &stat);
-    //     }
-    //     else
-    //     {
-    //         // last cell
-    //         MPI_Recv(E_prev[mpi_rank * regular_computation_size], (last_cell_computation_size + 2) * array_size_1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &stat);
-    //     }
-    // }
-    // cout << "Comms done: " << mpi_rank << endl;
     int computation_size = 0;
     if (!is_southmost)
     {
@@ -191,7 +160,7 @@ void simulate(double **E, double **E_prev, double **R,
         // last cell (southmost)
         computation_size = last_cell_computation_size;
     }
-    // cout << "p: " << mpi_rank << " " << mpi_rank * regular_computation_size + 1 << " " << mpi_rank * regular_computation_size + computation_size + 1 << endl;
+
     // Solve for the excitation, the PDE
     for (j = mpi_rank * regular_computation_size + 1; j <= mpi_rank * regular_computation_size + computation_size; j++)
     {
@@ -234,41 +203,8 @@ void simulate(double **E, double **E_prev, double **R,
                 counts[i] = regular_computation_size * array_size_0;
             }
         }
-        MPI_Gatherv(E[0] + displacements[mpi_rank], computation_size * array_size_0, MPI_DOUBLE, E[0], counts, displacements, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        MPI_Gatherv(R[0] + displacements[mpi_rank], computation_size * array_size_0, MPI_DOUBLE, R[0], counts, displacements, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        MPI_Gatherv(E[0] + displacements[mpi_rank], computation_size * array_size_0, MPI_DOUBLE, E_gather[0], counts, displacements, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     }
-
-    MPI_Barrier(MPI_COMM_WORLD);
-
-    // if (mpi_rank == 0)
-    // {
-    //     int curr_row_idx = 0;
-    //     // master sends the data to the other cores
-    //     for (int pid = 1; pid < py; pid++)
-    //     {
-    //         if (pid < py - 1)
-    //         {
-    //             MPI_Recv(E[pid * regular_computation_size + 1], (regular_computation_size)*array_size_1, MPI_DOUBLE, pid, 0, MPI_COMM_WORLD, &stat);
-    //         }
-    //         else
-    //         {
-    //             // last cell
-    //             MPI_Recv(E[pid * regular_computation_size + 1], (last_cell_computation_size)*array_size_1, MPI_DOUBLE, pid, 0, MPI_COMM_WORLD, &stat);
-    //         }
-    //     }
-    // }
-    // else
-    // {
-    //     if (mpi_rank < py - 1)
-    //     {
-    //         MPI_Send(E[mpi_rank * regular_computation_size + 1], (regular_computation_size)*array_size_1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
-    //     }
-    //     else
-    //     {
-    //         // last cell
-    //         MPI_Send(E[mpi_rank * regular_computation_size + 1], (last_cell_computation_size)*array_size_1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
-    //     }
-    // }
 }
 
 // Main program
@@ -286,7 +222,7 @@ int main(int argc, char **argv)
      *   E_prev is the Excitation variable for the previous timestep,
      *      and is used in time integration
      */
-    double **E, **R, **E_prev;
+    double **E, **R, **E_prev, **E_gather;
 
     // Various constants - these definitions shouldn't change
     const double a = 0.1, b = 0.1, kk = 8.0, M1 = 0.07, M2 = 0.3, epsilon = 0.01, d = 5e-5;
@@ -307,6 +243,8 @@ int main(int argc, char **argv)
     E = alloc2D(m + 2, n + 2);
     E_prev = alloc2D(m + 2, n + 2);
     R = alloc2D(m + 2, n + 2);
+
+    E_gather = alloc2D(m + 2, n + 2);
 
     int i, j;
     // Initialization
@@ -373,7 +311,7 @@ int main(int argc, char **argv)
             gather = true;
         }
 
-        simulate(E, E_prev, R, alpha, n, m, kk, dt, a, epsilon, M1, M2, b, px, py, gather);
+        simulate(E, E_prev, E_gather, R, alpha, n, m, kk, dt, a, epsilon, M1, M2, b, px, py, gather);
 
         // swap current E with previous E
         double **tmp = E;
@@ -385,11 +323,9 @@ int main(int argc, char **argv)
             int k = (int)(t / plot_freq);
             if ((t - k * plot_freq) < dt)
             {
-                cout << "r " << mpi_rank << " g " << gather << endl;
-                // splot(E, t, niter, m + 2, n + 2);
                 if (mpi_rank == 0)
                 {
-                    splot(E, t, niter, m + 2, n + 2);
+                    splot(E_gather, t, niter, m + 2, n + 2);
                 }
             }
         }
