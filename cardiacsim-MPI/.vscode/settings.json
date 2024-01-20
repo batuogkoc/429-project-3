@@ -6,6 +6,7 @@
         "cardiacsim copy.C": "cpp",
         "cardiacsim_parallel_1.C": "cpp",
         "cardiacsim_parallel_1 copy.C": "cpp",
-        "cardiacsim_parallel_2.C": "cpp"
+        "cardiacsim_parallel_2.C": "cpp",
+        "cardiacsim_parallel_3.C": "cpp"
     }
 }

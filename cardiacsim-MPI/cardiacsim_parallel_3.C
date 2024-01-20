@@ -85,21 +85,42 @@ extern "C"
 }
 void cmdLine(int argc, char *argv[], double &T, int &n, int &px, int &py, int &plot_freq, int &no_comm, int &num_threads);
 
-void simulate(double **E, double **E_prev, double **E_gather, double **R,
-              const double alpha, const int n, const int m, const double kk,
-              const double dt, const double a, const double epsilon,
-              const double M1, const double M2, const double b, const int px, const int py, bool gather)
+void memcpy2d(double **src_array, double **dest_array, int src_x, int src_y, int dest_x, int dest_y, int size_x, int size_y)
+{
+    for (int row_idx = 0; row_idx < size_y; row_idx++)
+    {
+        memcpy(dest_array[dest_y + row_idx] + dest_x, src_array[src_y + row_idx] + src_x, sizeof(double) * size_x);
+    }
+}
+
+void simulate(
+    double **E, double **E_gather, double **E_gather_local,
+    double **E_local, double **E_prev_local, double **R_local,
+    const int local_array_in_global_idx_x, const int local_array_in_global_idx_y,
+    const int p_x_idx, const int p_y_idx,
+    const int regular_computation_size_x, const int regular_computation_size_y,
+    const int last_cell_computation_size_x, const int last_cell_computation_size_y,
+    const int computation_size_x, const int computation_size_y,
+    const double alpha, const int n, const int m, const double kk,
+    const double dt, const double a, const double epsilon,
+    const double M1, const double M2, const double b, const int px, const int py, bool gather)
 {
     int i, j;
 
     int array_size_0 = m + 2;
     int array_size_1 = n + 2;
 
-    bool is_nortmost = (mpi_rank == 0);
-    bool is_southmost = (mpi_rank == py - 1);
+    bool is_northmost = (p_y_idx == 0);
+    bool is_southmost = (p_y_idx == py - 1);
 
-    int south_rank = is_southmost ? -1 : mpi_rank + 1;
-    int north_rank = is_nortmost ? -1 : mpi_rank - 1;
+    bool is_westmost = (p_x_idx == 0);
+    bool is_eastmost = (p_x_idx == px - 1);
+
+    int south_rank = is_southmost ? -1 : mpi_rank + px;
+    int north_rank = is_northmost ? -1 : mpi_rank - px;
+
+    int east_rank = is_eastmost ? -1 : mpi_rank + 1;
+    int west_rank = is_westmost ? -1 : mpi_rank - 1;
 
     /*
      * Copy data from boundary of the computational box
@@ -107,66 +128,111 @@ void simulate(double **E, double **E_prev, double **E_gather, double **R,
      * on the boundary of the computational box
      * Using mirror boundaries
      */
+    if (is_westmost)
+    {
+        for (j = 1; j <= computation_size_y; j++)
+            E_prev_local[j][0] = E_prev_local[j][2];
+    }
 
-    for (j = 1; j <= m; j++)
-        E_prev[j][0] = E_prev[j][2];
-    for (j = 1; j <= m; j++)
-        E_prev[j][n + 1] = E_prev[j][n - 1];
+    if (is_eastmost)
+    {
+        // east wall
+        for (j = 1; j <= computation_size_y; j++)
+            E_prev_local[j][n + 1] = E_prev_local[j][n - 1];
+    }
 
-    for (i = 1; i <= n; i++)
-        E_prev[0][i] = E_prev[2][i];
-    for (i = 1; i <= n; i++)
-        E_prev[m + 1][i] = E_prev[m - 1][i];
+    if (is_northmost)
+    {
+        // north wall
+        for (i = 1; i <= computation_size_x; i++)
+            E_prev_local[0][i] = E_prev_local[2][i];
+    }
 
-    int regular_computation_size = m / py;
-    int last_cell_computation_size = m - (regular_computation_size * (py - 1));
+    if (is_southmost)
+    {
+        // south wall
+        for (i = 1; i <= n; i++)
+            E_prev_local[m + 1][i] = E_prev_local[m - 1][i];
+    }
+
     // cout << "Regular: " << regular_computation_size << " last: " << last_cell_computation_size << " size: " << m << endl;
     MPI_Request requests[4];
     MPI_Status stats[4];
     int comm_wait_count = 0;
 
-    // communicate boundaries
-    if (!is_nortmost)
+    double west_incoming[computation_size_y];
+    double east_incoming[computation_size_y];
+
+    double west_outgoing[computation_size_y];
+    double east_outgoing[computation_size_y];
+
+    // pack west and east outgoing
+    for (size_t row_idx = 0; row_idx < computation_size_y; row_idx++)
     {
-        //  northern communications of ego process
+        west_outgoing[row_idx] = E_prev_local[row_idx + 1][1];
+        east_outgoing[row_idx] = E_prev_local[row_idx + 1][computation_size_x];
+    }
+
+    // communicate boundaries east and west
+    if (!is_westmost)
+    {
+        // west outgoing
+        MPI_Isend(west_outgoing, computation_size_y, MPI_DOUBLE, west_rank, 0, MPI_COMM_WORLD, &requests[comm_wait_count]);
+        comm_wait_count++;
+        // west incoming
+        MPI_Irecv(west_incoming, computation_size_y, MPI_DOUBLE, west_rank, 0, MPI_COMM_WORLD, &requests[comm_wait_count]);
+        comm_wait_count++;
+    }
+    if (!is_eastmost)
+    {
+        // east outgoing
+        MPI_Isend(east_outgoing, computation_size_y, MPI_DOUBLE, east_rank, 0, MPI_COMM_WORLD, &requests[comm_wait_count]);
+        comm_wait_count++;
+        // east incoming
+        MPI_Irecv(east_incoming, computation_size_y, MPI_DOUBLE, east_rank, 0, MPI_COMM_WORLD, &requests[comm_wait_count]);
+        comm_wait_count++;
+    }
+
+    MPI_Waitall(comm_wait_count, requests, stats);
+    comm_wait_count = 0;
+    cout << "Finished w-e comms: " << mpi_rank << endl;
+    // unpack west and east incoming
+    for (size_t row_idx = 0; row_idx < computation_size_y; row_idx++)
+    {
+        E_prev_local[row_idx + 1][0] = west_incoming[row_idx];
+        E_prev_local[row_idx + 1][computation_size_x + 1] = east_incoming[row_idx];
+    }
+
+    // communicate boundaries north and south
+    if (!is_northmost)
+    {
         //  north outgoing
-        MPI_Isend(E_prev[mpi_rank * regular_computation_size + 1], array_size_1, MPI_DOUBLE, north_rank, 0, MPI_COMM_WORLD, &requests[comm_wait_count]);
+        MPI_Isend(E_prev_local[1], computation_size_x + 2, MPI_DOUBLE, north_rank, 0, MPI_COMM_WORLD, &requests[comm_wait_count]);
         comm_wait_count++;
         // north incoming
-        MPI_Irecv(E_prev[mpi_rank * regular_computation_size], array_size_1, MPI_DOUBLE, north_rank, 0, MPI_COMM_WORLD, &requests[comm_wait_count]);
+        MPI_Irecv(E_prev_local[0], computation_size_x + 2, MPI_DOUBLE, north_rank, 0, MPI_COMM_WORLD, &requests[comm_wait_count]);
         comm_wait_count++;
     }
 
     if (!is_southmost)
     {
-        // southern communications of ego process
-        // south outgoing
-        MPI_Isend(E_prev[(mpi_rank + 1) * regular_computation_size], array_size_1, MPI_DOUBLE, south_rank, 0, MPI_COMM_WORLD, &requests[comm_wait_count]);
+        //  south outgoing
+        MPI_Isend(E_prev_local[1], computation_size_x + 2, MPI_DOUBLE, south_rank, 0, MPI_COMM_WORLD, &requests[comm_wait_count]);
         comm_wait_count++;
         // south incoming
-        MPI_Irecv(E_prev[(mpi_rank + 1) * regular_computation_size + 1], array_size_1, MPI_DOUBLE, south_rank, 0, MPI_COMM_WORLD, &requests[comm_wait_count]);
+        MPI_Irecv(E_prev_local[0], computation_size_x + 2, MPI_DOUBLE, south_rank, 0, MPI_COMM_WORLD, &requests[comm_wait_count]);
         comm_wait_count++;
     }
     // wait for boundary comms
     MPI_Waitall(comm_wait_count, requests, stats);
-
-    int computation_size = 0;
-    if (!is_southmost)
-    {
-        computation_size = regular_computation_size;
-    }
-    else
-    {
-        // last cell (southmost)
-        computation_size = last_cell_computation_size;
-    }
+    comm_wait_count = 0;
 
     // Solve for the excitation, the PDE
-    for (j = mpi_rank * regular_computation_size + 1; j <= mpi_rank * regular_computation_size + computation_size; j++)
+    for (j = 1; j <= computation_size_y; j++)
     {
-        for (i = 1; i <= n; i++)
+        for (i = 1; i <= computation_size_x; i++)
         {
-            E[j][i] = E_prev[j][i] + alpha * (E_prev[j][i + 1] + E_prev[j][i - 1] - 4 * E_prev[j][i] + E_prev[j + 1][i] + E_prev[j - 1][i]);
+            E_local[j][i] = E_prev_local[j][i] + alpha * (E_prev_local[j][i + 1] + E_prev_local[j][i - 1] - 4 * E_prev_local[j][i] + E_prev_local[j + 1][i] + E_prev_local[j - 1][i]);
         }
     }
 
@@ -174,36 +240,58 @@ void simulate(double **E, double **E_prev, double **E_gather, double **R,
      * Solve the ODE, advancing excitation and recovery to the
      *     next timtestep
      */
-    for (j = mpi_rank * regular_computation_size + 1; j <= mpi_rank * regular_computation_size + computation_size; j++)
+    for (j = 1; j <= computation_size_y; j++)
     {
         for (i = 1; i <= n; i++)
-            E[j][i] = E[j][i] - dt * (kk * E[j][i] * (E[j][i] - a) * (E[j][i] - 1) + E[j][i] * R[j][i]);
+            E_local[j][i] = E_local[j][i] - dt * (kk * E_local[j][i] * (E_local[j][i] - a) * (E_local[j][i] - 1) + E_local[j][i] * R_local[j][i]);
     }
 
-    for (j = mpi_rank * regular_computation_size + 1; j <= mpi_rank * regular_computation_size + computation_size; j++)
+    for (j = 1; j <= computation_size_y; j++)
     {
         for (i = 1; i <= n; i++)
-            R[j][i] = R[j][i] + dt * (epsilon + M1 * R[j][i] / (E[j][i] + M2)) * (-R[j][i] - kk * E[j][i] * (E[j][i] - b - 1));
+            R_local[j][i] = R_local[j][i] + dt * (epsilon + M1 * R_local[j][i] / (E_local[j][i] + M2)) * (-R_local[j][i] - kk * E_local[j][i] * (E_local[j][i] - b - 1));
     }
     if (gather)
     {
         int counts[py];
         int displacements[py];
-        int displacement = 1 * array_size_0;
-        for (int i = 0; i < py; i++)
+        int displacement = 0;
+        int idx = 0;
+
+        for (int row_idx = 0; row_idx < py; row_idx++)
         {
-            displacements[i] = displacement;
-            displacement += regular_computation_size * array_size_0;
-            if (i == py - 1)
+            for (int col_idx = 0; col_idx < px; col_idx++)
             {
-                counts[i] = last_cell_computation_size * array_size_0;
-            }
-            else
-            {
-                counts[i] = regular_computation_size * array_size_0;
+                displacements[idx] = displacement;
+                int curr_square_size_x = col_idx == py - 1 ? last_cell_computation_size_x : regular_computation_size_x;
+                int curr_square_size_y = row_idx == py - 1 ? last_cell_computation_size_x : regular_computation_size_x;
+                int curr_square_size = curr_square_size_x * curr_square_size_y;
+                displacement += curr_square_size;
+                counts[idx] = curr_square_size;
+                idx++;
             }
         }
-        MPI_Gatherv(E[0] + displacements[mpi_rank], computation_size * array_size_0, MPI_DOUBLE, E_gather[0], counts, displacements, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        memcpy2d(E_local, E_gather_local, 1, 1, 0, 0, computation_size_x, computation_size_y);
+        MPI_Gatherv(E_gather_local[0], computation_size_x * computation_size_y, MPI_DOUBLE, E_gather[0], counts, displacements, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        if (mpi_rank == 0)
+        {
+            int offset = 0;
+            for (int row_idx = 0; row_idx < py; row_idx++)
+            {
+                for (int col_idx = 0; col_idx < px; col_idx++)
+                {
+                    int curr_square_size_x = col_idx == py - 1 ? last_cell_computation_size_x : regular_computation_size_x;
+                    int curr_square_size_y = row_idx == py - 1 ? last_cell_computation_size_x : regular_computation_size_x;
+                    int curr_square_size = curr_square_size_x * curr_square_size_y;
+                    for (int curr_square_row_idx = 0; curr_square_row_idx < curr_square_size_y; curr_square_row_idx++)
+                    {
+                        memcpy(&E[row_idx][col_idx + curr_square_row_idx], E_gather[0] + offset + curr_square_row_idx * curr_square_size_x, curr_square_size_x * sizeof(double));
+                    }
+
+                    offset += curr_square_size;
+                }
+            }
+        }
     }
 }
 
@@ -222,7 +310,7 @@ int main(int argc, char **argv)
      *   E_prev is the Excitation variable for the previous timestep,
      *      and is used in time integration
      */
-    double **E, **R, **E_prev, **E_gather;
+    double **E, **R, **E_prev;
 
     // Various constants - these definitions shouldn't change
     const double a = 0.1, b = 0.1, kk = 8.0, M1 = 0.07, M2 = 0.3, epsilon = 0.01, d = 5e-5;
@@ -243,9 +331,6 @@ int main(int argc, char **argv)
     E = alloc2D(m + 2, n + 2);
     E_prev = alloc2D(m + 2, n + 2);
     R = alloc2D(m + 2, n + 2);
-
-    E_gather = alloc2D(m + 2, n + 2);
-
     int i, j;
     // Initialization
     for (j = 1; j <= m; j++)
@@ -289,6 +374,52 @@ int main(int argc, char **argv)
     double t = 0.0;
     // Integer timestep number
     int niter = 0;
+
+    // user variables
+    int array_size_0 = m + 2;
+    int array_size_1 = n + 2;
+
+    int p_x_idx = mpi_rank % px;
+    int p_y_idx = mpi_rank / px;
+
+    bool is_northmost = (p_y_idx == 0);
+    bool is_southmost = (p_y_idx == py - 1);
+
+    bool is_westmost = (p_x_idx == 0);
+    bool is_eastmost = (p_x_idx == px - 1);
+
+    int south_rank = is_southmost ? -1 : mpi_rank + px;
+    int north_rank = is_northmost ? -1 : mpi_rank - px;
+
+    int east_rank = is_eastmost ? -1 : mpi_rank + 1;
+    int west_rank = is_westmost ? -1 : mpi_rank - 1;
+
+    int regular_computation_size_y = m / py;
+    int last_cell_computation_size_y = m - (regular_computation_size_y * (py - 1));
+
+    int regular_computation_size_x = n / px;
+    int last_cell_computation_size_x = n - (regular_computation_size_x * (px - 1));
+
+    int computation_size_x = is_eastmost ? last_cell_computation_size_x : regular_computation_size_x;
+    int computation_size_y = is_southmost ? last_cell_computation_size_y : regular_computation_size_y;
+
+    double **E_local = alloc2D(computation_size_y + 2, computation_size_x + 2);
+    double **E_prev_local = alloc2D(computation_size_y + 2, computation_size_x + 2);
+    double **R_local = alloc2D(computation_size_y + 2, computation_size_x + 2);
+    double **E_gather = alloc2D(m, n);
+    double **E_gather_local = alloc2D(computation_size_y, computation_size_x);
+
+    if (E_local == NULL || E_prev_local == NULL || R_local == NULL)
+    {
+        return 1;
+    }
+
+    int local_array_in_global_idx_x = p_x_idx * regular_computation_size_x;
+    int local_array_in_global_idx_y = p_y_idx * regular_computation_size_y;
+
+    memcpy2d(E_prev, E_prev_local, local_array_in_global_idx_x, local_array_in_global_idx_y, 0, 0, computation_size_x + 2, computation_size_y + 2);
+    memcpy2d(R, R_local, local_array_in_global_idx_x, local_array_in_global_idx_y, 0, 0, computation_size_x + 2, computation_size_y + 2);
+
     while (t < T)
     {
 
@@ -311,12 +442,21 @@ int main(int argc, char **argv)
             gather = true;
         }
 
-        simulate(E, E_prev, E_gather, R, alpha, n, m, kk, dt, a, epsilon, M1, M2, b, px, py, gather);
+        simulate(E, E_gather, E_gather_local,
+                 E_local, E_prev_local, R_local,
+                 local_array_in_global_idx_x, local_array_in_global_idx_y,
+                 p_x_idx, p_y_idx,
+                 regular_computation_size_x, regular_computation_size_y,
+                 last_cell_computation_size_x, last_cell_computation_size_y,
+                 computation_size_x, computation_size_y,
+                 alpha, n, m, kk,
+                 dt, a, epsilon,
+                 M1, M2, b, px, py, gather);
 
-        // swap current E with previous E
-        double **tmp = E;
-        E = E_prev;
-        E_prev = tmp;
+        // swap current E_local with  E_prev_local
+        double **tmp = E_local;
+        E_local = E_prev_local;
+        E_prev_local = tmp;
 
         if (plot_freq)
         {
@@ -325,7 +465,7 @@ int main(int argc, char **argv)
             {
                 if (mpi_rank == 0)
                 {
-                    splot(E_gather, t, niter, m + 2, n + 2);
+                    splot(E, t, niter, m + 2, n + 2);
                 }
             }
         }
@@ -344,7 +484,7 @@ int main(int argc, char **argv)
              << endl;
 
         double mx;
-        double l2norm = stats(E_gather, m, n, &mx);
+        double l2norm = stats(E, m, n, &mx);
         cout << "Max: " << mx << " L2norm: " << l2norm << endl;
     }
 
