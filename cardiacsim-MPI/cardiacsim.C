@@ -88,71 +88,107 @@ void cmdLine(int argc, char *argv[], double &T, int &n, int &px, int &py, int &p
 void simulate(double **E, double **E_prev, double **R,
               const double alpha, const int n, const int m, const double kk,
               const double dt, const double a, const double epsilon,
-              const double M1, const double M2, const double b, const int px, const int py)
+              const double M1, const double M2, const double b, const int px, const int py, bool gather)
 {
     int i, j;
 
     int array_size_0 = m + 2;
     int array_size_1 = n + 2;
+
+    bool is_nortmost = (mpi_rank == 0);
+    bool is_southmost = (mpi_rank == py - 1);
+
+    int south_rank = is_southmost ? -1 : mpi_rank + 1;
+    int north_rank = is_nortmost ? -1 : mpi_rank - 1;
+
     /*
      * Copy data from boundary of the computational box
      * to the padding region, set up for differencing
      * on the boundary of the computational box
      * Using mirror boundaries
      */
-    if (mpi_rank == 0)
-    {
-        for (j = 1; j <= m; j++)
-            E_prev[j][0] = E_prev[j][2];
-        for (j = 1; j <= m; j++)
-            E_prev[j][n + 1] = E_prev[j][n - 1];
 
-        for (i = 1; i <= n; i++)
-            E_prev[0][i] = E_prev[2][i];
-        for (i = 1; i <= n; i++)
-            E_prev[m + 1][i] = E_prev[m - 1][i];
-    }
+    for (j = 1; j <= m; j++)
+        E_prev[j][0] = E_prev[j][2];
+    for (j = 1; j <= m; j++)
+        E_prev[j][n + 1] = E_prev[j][n - 1];
+
+    for (i = 1; i <= n; i++)
+        E_prev[0][i] = E_prev[2][i];
+    for (i = 1; i <= n; i++)
+        E_prev[m + 1][i] = E_prev[m - 1][i];
+
     int regular_computation_size = m / py;
     int last_cell_computation_size = m - (regular_computation_size * (py - 1));
     // cout << "Regular: " << regular_computation_size << " last: " << last_cell_computation_size << " size: " << m << endl;
-    if (mpi_rank == 0)
+    MPI_Request requests[4];
+    MPI_Status stats[4];
+    int comm_wait_count = 0;
+
+    // communicate boundaries
+    if (!is_nortmost)
     {
-        int curr_row_idx = 0;
-        // master sends the data to the other cores
-        for (int pid = 1; pid < py; pid++)
-        {
-            if (pid < py - 1)
-            {
-                MPI_Send(E_prev[pid * regular_computation_size], (regular_computation_size + 2) * array_size_1, MPI_DOUBLE, pid, 0, MPI_COMM_WORLD);
-            }
-            else
-            {
-                // last cell
-                MPI_Send(E_prev[pid * regular_computation_size], (last_cell_computation_size + 2) * array_size_1, MPI_DOUBLE, pid, 0, MPI_COMM_WORLD);
-            }
-        }
+        //  northern communications of ego process
+        //  north outgoing
+        MPI_Isend(E_prev[mpi_rank * regular_computation_size + 1], array_size_1, MPI_DOUBLE, north_rank, 0, MPI_COMM_WORLD, &requests[comm_wait_count]);
+        comm_wait_count++;
+        // north incoming
+        MPI_Irecv(E_prev[mpi_rank * regular_computation_size], array_size_1, MPI_DOUBLE, north_rank, 0, MPI_COMM_WORLD, &requests[comm_wait_count]);
+        comm_wait_count++;
     }
-    else
+
+    if (!is_southmost)
     {
-        if (mpi_rank < py - 1)
-        {
-            MPI_Recv(E_prev[mpi_rank * regular_computation_size], (regular_computation_size + 2) * array_size_1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &stat);
-        }
-        else
-        {
-            // last cell
-            MPI_Recv(E_prev[mpi_rank * regular_computation_size], (last_cell_computation_size + 2) * array_size_1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &stat);
-        }
+        // southern communications of ego process
+        // south outgoing
+        MPI_Isend(E_prev[(mpi_rank + 1) * regular_computation_size], array_size_1, MPI_DOUBLE, south_rank, 0, MPI_COMM_WORLD, &requests[comm_wait_count]);
+        comm_wait_count++;
+        // south incoming
+        MPI_Irecv(E_prev[(mpi_rank + 1) * regular_computation_size + 1], array_size_1, MPI_DOUBLE, south_rank, 0, MPI_COMM_WORLD, &requests[comm_wait_count]);
+        comm_wait_count++;
+        // wait for boundary comms
     }
+    MPI_Waitall(comm_wait_count, requests, stats);
+    cout << "Comms done: " << mpi_rank << endl;
+
+    // if (mpi_rank == 0)
+    // {
+    //     int curr_row_idx = 0;
+    //     // master sends the data to the other cores
+    //     for (int pid = 1; pid < py; pid++)
+    //     {
+    //         if (pid < py - 1)
+    //         {
+    //             MPI_Send(E_prev[pid * regular_computation_size], (regular_computation_size + 2) * array_size_1, MPI_DOUBLE, pid, 0, MPI_COMM_WORLD);
+    //         }
+    //         else
+    //         {
+    //             // last cell
+    //             MPI_Send(E_prev[pid * regular_computation_size], (last_cell_computation_size + 2) * array_size_1, MPI_DOUBLE, pid, 0, MPI_COMM_WORLD);
+    //         }
+    //     }
+    // }
+    // else
+    // {
+    //     if (mpi_rank < py - 1)
+    //     {
+    //         MPI_Recv(E_prev[mpi_rank * regular_computation_size], (regular_computation_size + 2) * array_size_1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &stat);
+    //     }
+    //     else
+    //     {
+    //         // last cell
+    //         MPI_Recv(E_prev[mpi_rank * regular_computation_size], (last_cell_computation_size + 2) * array_size_1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &stat);
+    //     }
+    // }
     // cout << "Comms done: " << mpi_rank << endl;
     int computation_size = 0;
-    if (mpi_rank < py - 1)
+    if (!is_southmost)
     {
         computation_size = regular_computation_size;
     }
     else
     {
-        // last cell
+        // last cell (southmost)
         computation_size = last_cell_computation_size;
     }
     // cout << "p: " << mpi_rank << " " << mpi_rank * regular_computation_size + 1 << " " << mpi_rank * regular_computation_size + computation_size + 1 << endl;
@@ -180,36 +216,57 @@ void simulate(double **E, double **E_prev, double **R,
         for (i = 1; i <= n; i++)
             R[j][i] = R[j][i] + dt * (epsilon + M1 * R[j][i] / (E[j][i] + M2)) * (-R[j][i] - kk * E[j][i] * (E[j][i] - b - 1));
     }
-
-    if (mpi_rank == 0)
+    if (gather)
     {
-        int curr_row_idx = 0;
-        // master sends the data to the other cores
-        for (int pid = 1; pid < py; pid++)
+        int counts[py];
+        int displacements[py];
+        int displacement = 1;
+        for (int i = 0; i < py; i++)
         {
-            if (pid < py - 1)
+            displacements[i] = displacement;
+            displacement += regular_computation_size;
+            if (i == py - 1)
             {
-                MPI_Recv(E[pid * regular_computation_size + 1], (regular_computation_size) * array_size_1, MPI_DOUBLE, pid, 0, MPI_COMM_WORLD, &stat);
+                counts[i] = last_cell_computation_size;
             }
             else
             {
-                // last cell
-                MPI_Recv(E[pid * regular_computation_size + 1], (last_cell_computation_size) * array_size_1, MPI_DOUBLE, pid, 0, MPI_COMM_WORLD, &stat);
+                counts[i] = regular_computation_size;
             }
         }
+        MPI_Gatherv(E[0], computation_size, MPI_DOUBLE, E[0], counts, displacements, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        MPI_Gatherv(R[0], computation_size, MPI_DOUBLE, R[0], counts, displacements, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     }
-    else
-    {
-        if (mpi_rank < py - 1)
-        {
-            MPI_Send(E[mpi_rank * regular_computation_size + 1], (regular_computation_size) * array_size_1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
-        }
-        else
-        {
-            // last cell
-            MPI_Send(E[mpi_rank * regular_computation_size + 1], (last_cell_computation_size) * array_size_1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
-        }
-    }
+
+    // if (mpi_rank == 0)
+    // {
+    //     int curr_row_idx = 0;
+    //     // master sends the data to the other cores
+    //     for (int pid = 1; pid < py; pid++)
+    //     {
+    //         if (pid < py - 1)
+    //         {
+    //             MPI_Recv(E[pid * regular_computation_size + 1], (regular_computation_size)*array_size_1, MPI_DOUBLE, pid, 0, MPI_COMM_WORLD, &stat);
+    //         }
+    //         else
+    //         {
+    //             // last cell
+    //             MPI_Recv(E[pid * regular_computation_size + 1], (last_cell_computation_size)*array_size_1, MPI_DOUBLE, pid, 0, MPI_COMM_WORLD, &stat);
+    //         }
+    //     }
+    // }
+    // else
+    // {
+    //     if (mpi_rank < py - 1)
+    //     {
+    //         MPI_Send(E[mpi_rank * regular_computation_size + 1], (regular_computation_size)*array_size_1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+    //     }
+    //     else
+    //     {
+    //         // last cell
+    //         MPI_Send(E[mpi_rank * regular_computation_size + 1], (last_cell_computation_size)*array_size_1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+    //     }
+    // }
 }
 
 // Main program
@@ -295,8 +352,24 @@ int main(int argc, char **argv)
 
         t += dt;
         niter++;
+        bool gather = false;
 
-        simulate(E, E_prev, R, alpha, n, m, kk, dt, a, epsilon, M1, M2, b, px, py);
+        // will plot this iter, gather
+        if (plot_freq)
+        {
+            int k = (int)(t / plot_freq);
+            if ((t - k * plot_freq) < dt)
+            {
+                gather = true;
+            }
+        }
+        // last iter, gather
+        if (!((t + dt) < T))
+        {
+            gather = true;
+        }
+
+        simulate(E, E_prev, R, alpha, n, m, kk, dt, a, epsilon, M1, M2, b, px, py, gather);
 
         // swap current E with previous E
         double **tmp = E;
