@@ -9,7 +9,7 @@ all: cardiacsim_serial cardiacsim_parallel_1
 
 SHARED_OBJECTS = splot.o cmdLine.o
 SERIAL_OBJECTS = cardiacsim_serial.o $(SHARED_OBJECTS)
-PARALLEL_1_OBJECTS = cardiacsim.o $(SHARED_OBJECTS)
+PARALLEL_1_OBJECTS = cardiacsim_parallel_1.o $(SHARED_OBJECTS)
 
 
 cardiacsim_parallel_1:	        $(PARALLEL_1_OBJECTS) 

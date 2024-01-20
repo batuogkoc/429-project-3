@@ -2,6 +2,8 @@
     "files.associations": {
         "cardiacsim.C": "cpp",
         "cmdLine.C": "cpp",
-        "iostream": "cpp"
+        "iostream": "cpp",
+        "cardiacsim copy.C": "cpp",
+        "cardiacsim_parallel_1.C": "cpp"
     }
 }
