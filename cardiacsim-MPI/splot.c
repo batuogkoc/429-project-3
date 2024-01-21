@@ -51,8 +51,12 @@ void splot(double **U, double T, int niter, int m, int n, bool to_png)
 
   //    fprintf(gnu,"set palette rgbformulae 22, 13, 31\n");
   //    fprintf(gnu,"set palette rgbformulae 30, 31, 32\n");
-
-  fprintf(gnu, "splot [0:%d] [0:%d][%f:%f] \"-\"\n", m - 1, n - 1, mn, mx);
+  if (mn == mx)
+  {
+    mn = 0.0;
+    mx = 1.0;
+  }
+  fprintf(gnu, "splot [0:%d] [0:%d][%f:%f] \"-\"\n", n - 1, m - 1, mn, mx);
   for (j = 0; j < m; j++)
   {
     for (i = 0; i < n; i++)

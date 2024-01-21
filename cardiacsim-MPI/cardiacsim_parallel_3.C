@@ -57,6 +57,20 @@ double **alloc2D(int m, int n)
     return (E);
 }
 
+double **extendBoundaries(double **E_prev, int m, int n)
+{
+    int i, j;
+    for (j = 1; j <= m; j++)
+        E_prev[j][0] = E_prev[j][2];
+    for (j = 1; j <= m; j++)
+        E_prev[j][n + 1] = E_prev[j][n - 1];
+
+    for (i = 1; i <= n; i++)
+        E_prev[0][i] = E_prev[2][i];
+    for (i = 1; i <= n; i++)
+        E_prev[m + 1][i] = E_prev[m - 1][i];
+}
+
 // Reports statistics about the computation
 // These values should not vary (except to within roundoff)
 // when we use different numbers of  processes to solve the problem
@@ -85,21 +99,29 @@ extern "C"
 }
 void cmdLine(int argc, char *argv[], double &T, int &n, int &px, int &py, int &plot_freq, int &no_comm, int &num_threads);
 
-void memcpy2d(double **src_array, double **dest_array, int src_x, int src_y, int dest_x, int dest_y, int size_x, int size_y, bool debug)
-{
-    for (int row_idx = 0; row_idx < size_y; row_idx++)
-    {
-        if (debug)
-            cout << "test " << mpi_rank << " row: " << row_idx << " of: " << size_y << endl;
+// void memcpy2d(double **src_array, double **dest_array, int src_x, int src_y, int dest_x, int dest_y, int size_x, int size_y, bool debug)
+// {
+//     for (int row_idx = 0; row_idx < size_y; row_idx++)
+//     {
+//         if (debug)
+//             cout << "test " << mpi_rank << " row: " << row_idx << " of: " << size_y << endl;
 
-        memcpy(dest_array[dest_y + row_idx] + dest_x, src_array[src_y + row_idx] + src_x, sizeof(double) * size_x);
-    }
-}
+//         memcpy(dest_array[dest_y + row_idx] + dest_x, src_array[src_y + row_idx] + src_x, sizeof(double) * size_x);
+//     }
+// }
 void memcpy2d(double **src_array, double **dest_array, int src_x, int src_y, int dest_x, int dest_y, int size_x, int size_y)
 {
+    // cout << "dest bounds" << dest_x << " " << dest_x + size_x - 1 << " " << dest_y << " " << dest_y + size_y - 1 << "\n";
+    // cout << "src bounds " << src_x << " " << src_x + size_x - 1 << " " << src_y << " " << src_y + size_y - 1 << "\n";
+
     for (int row_idx = 0; row_idx < size_y; row_idx++)
     {
-        memcpy(&dest_array[dest_y + row_idx][dest_x], &src_array[src_y + row_idx][src_x], sizeof(double) * size_x);
+        for (int col_idx = 0; col_idx < size_x; col_idx++)
+        {
+            dest_array[dest_y + row_idx][dest_x + col_idx] = src_array[src_y + row_idx][src_x + col_idx];
+        }
+
+        // memcpy(&dest_array[dest_y + row_idx][dest_x], &src_array[src_y + row_idx][src_x], sizeof(double) * size_x);
     }
 }
 
@@ -165,7 +187,6 @@ void simulate(
             E_prev_local[computation_size_y + 1][i] = E_prev_local[computation_size_y - 1][i];
     }
 
-    // cout << "Regular: " << regular_computation_size << " last: " << last_cell_computation_size << " size: " << m << endl;
     MPI_Request requests[4];
     MPI_Status stats[4];
     int comm_wait_count = 0;
@@ -204,36 +225,41 @@ void simulate(
 
     MPI_Waitall(comm_wait_count, requests, stats);
     comm_wait_count = 0;
+    // wait for boundary comms
+
     // unpack west and east incoming
     for (size_t row_idx = 0; row_idx < computation_size_y; row_idx++)
     {
-        E_prev_local[row_idx + 1][0] = west_incoming[row_idx];
-        E_prev_local[row_idx + 1][computation_size_x + 1] = east_incoming[row_idx];
+        if (!is_westmost)
+        {
+            E_prev_local[row_idx + 1][0] = west_incoming[row_idx];
+        }
+        if (!is_eastmost)
+        {
+            E_prev_local[row_idx + 1][computation_size_x + 1] = east_incoming[row_idx];
+        }
     }
 
     // communicate boundaries north and south
     if (!is_northmost)
     {
         //  north outgoing
-        MPI_Isend(E_prev_local[1], computation_size_x + 2, MPI_DOUBLE, north_rank, 0, MPI_COMM_WORLD, &requests[comm_wait_count]);
+        MPI_Isend(&E_prev_local[1][0], computation_size_x + 2, MPI_DOUBLE, north_rank, 0, MPI_COMM_WORLD, &requests[comm_wait_count]);
         comm_wait_count++;
         // north incoming
-        MPI_Irecv(E_prev_local[0], computation_size_x + 2, MPI_DOUBLE, north_rank, 0, MPI_COMM_WORLD, &requests[comm_wait_count]);
+        MPI_Irecv(&E_prev_local[0][0], computation_size_x + 2, MPI_DOUBLE, north_rank, 0, MPI_COMM_WORLD, &requests[comm_wait_count]);
         comm_wait_count++;
     }
 
     if (!is_southmost)
     {
         //  south outgoing
-        MPI_Isend(E_prev_local[1], computation_size_x + 2, MPI_DOUBLE, south_rank, 0, MPI_COMM_WORLD, &requests[comm_wait_count]);
+        MPI_Isend(&E_prev_local[computation_size_y][0], computation_size_x + 2, MPI_DOUBLE, south_rank, 0, MPI_COMM_WORLD, &requests[comm_wait_count]);
         comm_wait_count++;
         // south incoming
-        MPI_Irecv(E_prev_local[0], computation_size_x + 2, MPI_DOUBLE, south_rank, 0, MPI_COMM_WORLD, &requests[comm_wait_count]);
+        MPI_Irecv(&E_prev_local[computation_size_y + 1][0], computation_size_x + 2, MPI_DOUBLE, south_rank, 0, MPI_COMM_WORLD, &requests[comm_wait_count]);
         comm_wait_count++;
     }
-    // wait for boundary comms
-    MPI_Waitall(comm_wait_count, requests, stats);
-    comm_wait_count = 0;
 
     // Solve for the excitation, the PDE
     for (j = 1; j <= computation_size_y; j++)
@@ -250,15 +276,16 @@ void simulate(
      */
     for (j = 1; j <= computation_size_y; j++)
     {
-        for (i = 1; i <= n; i++)
+        for (i = 1; i <= computation_size_x; i++)
             E_local[j][i] = E_local[j][i] - dt * (kk * E_local[j][i] * (E_local[j][i] - a) * (E_local[j][i] - 1) + E_local[j][i] * R_local[j][i]);
     }
 
     for (j = 1; j <= computation_size_y; j++)
     {
-        for (i = 1; i <= n; i++)
+        for (i = 1; i <= computation_size_x; i++)
             R_local[j][i] = R_local[j][i] + dt * (epsilon + M1 * R_local[j][i] / (E_local[j][i] + M2)) * (-R_local[j][i] - kk * E_local[j][i] * (E_local[j][i] - b - 1));
     }
+
     if (gather)
     {
         int counts[py];
@@ -271,18 +298,27 @@ void simulate(
             for (int col_idx = 0; col_idx < px; col_idx++)
             {
                 displacements[idx] = displacement;
-                int curr_square_size_x = col_idx == py - 1 ? last_cell_computation_size_x : regular_computation_size_x;
-                int curr_square_size_y = row_idx == py - 1 ? last_cell_computation_size_x : regular_computation_size_x;
+                int curr_square_size_x = col_idx == px - 1 ? last_cell_computation_size_x : regular_computation_size_x;
+                int curr_square_size_y = row_idx == py - 1 ? last_cell_computation_size_y : regular_computation_size_y;
                 int curr_square_size = curr_square_size_x * curr_square_size_y;
                 displacement += curr_square_size;
                 counts[idx] = curr_square_size;
                 idx++;
             }
         }
-        cout << "x: " << computation_size_x << " y: " << computation_size_y << endl;
-        memcpy2d(E_local, E_gather_local, 1, 1, 0, 0, computation_size_x, computation_size_y, true);
-        cout << "Gather end " << mpi_rank << endl;
 
+        // // cout << "x: " << computation_size_x << " y: " << computation_size_y << endl;
+        memcpy2d(E_local, E_gather_local, 1, 1, 0, 0, computation_size_x, computation_size_y);
+        // // cout << "Gather end " << mpi_rank << endl;
+        // double outgoing[computation_size_y][computation_size_x];
+
+        // for (int row = 0; row < computation_size_y; row++)
+        // {
+        //     for (int col = 0; col < computation_size_x; col++)
+        //     {
+        //         outgoing[row][col] = E_local[row + 1][col + 1];
+        //     }
+        // }
         MPI_Gatherv(&E_gather_local[0][0], computation_size_x * computation_size_y, MPI_DOUBLE, &E_gather[0][0], counts, displacements, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
         if (mpi_rank == 0)
@@ -292,18 +328,36 @@ void simulate(
             {
                 for (int col_idx = 0; col_idx < px; col_idx++)
                 {
-                    int curr_square_size_x = col_idx == py - 1 ? last_cell_computation_size_x : regular_computation_size_x;
-                    int curr_square_size_y = row_idx == py - 1 ? last_cell_computation_size_x : regular_computation_size_x;
+                    int curr_square_size_x = col_idx == px - 1 ? last_cell_computation_size_x : regular_computation_size_x;
+                    int curr_square_size_y = row_idx == py - 1 ? last_cell_computation_size_y : regular_computation_size_y;
                     int curr_square_size = curr_square_size_x * curr_square_size_y;
                     for (int curr_square_row_idx = 0; curr_square_row_idx < curr_square_size_y; curr_square_row_idx++)
                     {
-                        memcpy(&E[row_idx][col_idx + curr_square_row_idx], E_gather[0] + offset + curr_square_row_idx * curr_square_size_x, curr_square_size_x * sizeof(double));
+                        // for (int curr_square_col_idx = 0; curr_square_col_idx < curr_square_size_x; curr_square_col_idx++)
+                        // {
+                        //     E[row_idx * regular_computation_size_y + curr_square_row_idx + 1][col_idx * regular_computation_size_x + curr_square_col_idx + 1] = (&E_gather[0][0] + offset)[curr_square_row_idx * curr_square_size_x + curr_square_col_idx];
+                        // }
+
+                        memcpy(&E[row_idx * regular_computation_size_y + curr_square_row_idx + 1][col_idx * regular_computation_size_x + 1], &E_gather[0][0] + offset + curr_square_row_idx * curr_square_size_x, curr_square_size_x * sizeof(double));
                     }
 
                     offset += curr_square_size;
                 }
             }
+            // extendBoundaries(E, m, n);
         }
+    }
+}
+void print_array(double **array, int rows, int cols)
+{
+    for (size_t i = 0; i < rows; i++)
+    {
+        cout << "rank" << mpi_rank << " r " << i << " ";
+        for (size_t j = 0; j < cols; j++)
+        {
+            cout << array[i][j] << " ";
+        }
+        cout << endl;
     }
 }
 
@@ -335,6 +389,11 @@ int main(int argc, char **argv)
     int num_threads = 1;
 
     cmdLine(argc, argv, T, n, px, py, plot_freq, no_comm, num_threads);
+
+    if (mpi_size != px * py)
+    {
+        return 1;
+    }
     m = n;
     // Allocate contiguous memory for solution arrays
     // The computational box is defined on [1:m+1,1:n+1]
@@ -419,6 +478,16 @@ int main(int argc, char **argv)
     double **E_local = alloc2D(computation_size_y + 2, computation_size_x + 2);
     double **E_prev_local = alloc2D(computation_size_y + 2, computation_size_x + 2);
     double **R_local = alloc2D(computation_size_y + 2, computation_size_x + 2);
+    for (int row = 0; row < computation_size_y + 2; row++)
+    {
+        for (int col = 0; col < computation_size_x + 2; col++)
+        {
+            E_local[row][col] = 0.0;
+            E_prev_local[row][col] = 0.0;
+            R_local[row][col] = 0.0;
+        }
+    }
+
     double **E_gather = alloc2D(m, n);
     double **E_gather_local = alloc2D(computation_size_y, computation_size_x);
 
@@ -427,12 +496,7 @@ int main(int argc, char **argv)
 
     memcpy2d(E_prev, E_prev_local, local_array_in_global_idx_x, local_array_in_global_idx_y, 0, 0, computation_size_x + 2, computation_size_y + 2);
     memcpy2d(R, R_local, local_array_in_global_idx_x, local_array_in_global_idx_y, 0, 0, computation_size_x + 2, computation_size_y + 2);
-    if (mpi_rank == 0)
-    {
-        splot(R_local, t, niter, computation_size_y + 2, computation_size_x + 2, false);
-    }
-    while (true)
-        ;
+
     while (t < T)
     {
 
@@ -464,30 +528,55 @@ int main(int argc, char **argv)
                  computation_size_x, computation_size_y,
                  alpha, n, m, kk,
                  dt, a, epsilon,
-                 M1, M2, b, px, py, false);
+                 M1, M2, b, px, py, gather);
 
         // swap current E_local with  E_prev_local
         double **tmp = E_local;
         E_local = E_prev_local;
         E_prev_local = tmp;
 
+        // if (mpi_rank == 0)
+        //     splot(E, t, niter, m + 2, n + 2, false);
+        // if (mpi_rank == 0)
+        // print_array(E_local, computation_size_y + 2, computation_size_x + 2);
+        if (gather)
+        {
+            // int i, j;
+            for (j = 1; j <= m; j++)
+                E[j][0] = E[j][2];
+            for (j = 1; j <= m; j++)
+                E[j][n + 1] = E[j][n - 1];
+
+            for (i = 1; i <= n; i++)
+                E[0][i] = E[2][i];
+            for (i = 1; i <= n; i++)
+                E[m + 1][i] = E[m - 1][i];
+        }
+        // getchar();
         if (plot_freq)
         {
+
             int k = (int)(t / plot_freq);
             if ((t - k * plot_freq) < dt)
             {
+
+                // splot(E_gather_local, t, niter, computation_size_y, computation_size_x, false);
+
                 if (mpi_rank == 0)
                 {
-                    cout << "plotting" << endl;
+                    // int i, j;
+                    // for (j = 1; j <= m; j++)
+                    //     E[j][0] = E[j][2];
+                    // for (j = 1; j <= m; j++)
+                    //     E[j][n + 1] = E[j][n - 1];
+
+                    // for (i = 1; i <= n; i++)
+                    //     E[0][i] = E[2][i];
+                    // for (i = 1; i <= n; i++)
+                    //     E[m + 1][i] = E[m - 1][i];
+                    // splot(E_prev_local, t, niter, computation_size_y + 2, computation_size_x + 2, false);
+                    // splot(E_gather_local, t, niter, computation_size_y, computation_size_x, false);
                     splot(E, t, niter, m + 2, n + 2, false);
-                    // for (size_t row = 0; row < computation_size_y + 2; row++)
-                    // {
-                    //     for (size_t col = 0; col < computation_size_x + 2; col++)
-                    //     {
-                    //         cout << E_prev_local[row][col] << " ";
-                    //     }
-                    //     cout << endl;
-                    // }
                 }
             }
         }

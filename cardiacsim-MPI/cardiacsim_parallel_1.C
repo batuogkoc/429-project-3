@@ -326,7 +326,6 @@ int main(int argc, char **argv)
                 if (mpi_rank == 0)
                 {
                     splot(E_gather, t, niter, m + 2, n + 2, false);
-                    return 0;
                 }
             }
         }

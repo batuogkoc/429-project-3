@@ -36,13 +36,13 @@ echo "Running compiled binary..."
 
 #parallel version test
 echo "Parallel version test"
-mpirun -np 2 ./cardiacsim_parallel_3 -n 100 -t 100 -y 2 -x 1 -p 1
-# mpirun -np 2 ./cardiacsim_parallel_1 -n 100 -t 100 -y 2 -p 1
+mpirun -np 2 ./cardiacsim_parallel_3 -n 100 -t 100 -y 1 -x 2 -p 1
+# mpirun -np 5 ./cardiacsim_parallel_1 -n 256 -t 100 -y 5 -p 1
 
 
 #serial version
 # echo "Serial version..."
-# ./cardiacsim_serial -n 200 -t 100
+# ./cardiacsim_serial -n 100 -t 100 -p 1
 
 #parallel version
 # echo "Parallel version with 1 process"
