@@ -1,0 +1,160 @@
+Compiling code
+make: Nothing to be done for `all'.
+Running Job...!
+===============================================================================
+Running compiled binary...
+/var/spool/slurm/d/job463435/slurm_script: line 38: serial: command not found
+Serial version...
+Grid Size       : 1024
+Duration of Sim : 100
+Time step dt    : 0.00431553
+Process geometry: 1 x 1
+
+Number of Iterations        : 23173
+Elapsed Time (sec)          : 67.2236
+Sustained Gflops Rate       : 10.1209
+Sustained Bandwidth (GB/sec): 11.5667
+
+Max: 0.979365 L2norm: 0.498186
+Parallel version with 1 process
+--------------------------------------------------------------------------
+By default, for Open MPI 4.0 and later, infiniband ports on a device
+are not used by default.  The intent is to use UCX for these devices.
+You can override this policy by setting the btl_openib_allow_ib MCA parameter
+to true.
+
+  Local host:              rk02
+  Local adapter:           mlx5_0
+  Local port:              1
+
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+WARNING: There was an error initializing an OpenFabrics device.
+
+  Local host:   rk02
+  Local device: mlx5_0
+--------------------------------------------------------------------------
+Rank       : 0
+Size       : 1
+Grid Size       : 1024
+Duration of Sim : 100
+Time step dt    : 0.00431553
+Process geometry: 1 x 1
+
+Plot freq 0
+Number of Iterations        : 23173
+Elapsed Time (sec)          : 67.4104
+Sustained Gflops Rate       : 10.0928
+Sustained Bandwidth (GB/sec): 11.5347
+
+Max: 0.979365 L2norm: 0.498186
+Parallel version with 2 processes
+--------------------------------------------------------------------------
+By default, for Open MPI 4.0 and later, infiniband ports on a device
+are not used by default.  The intent is to use UCX for these devices.
+You can override this policy by setting the btl_openib_allow_ib MCA parameter
+to true.
+
+  Local host:              rk02
+  Local adapter:           mlx5_0
+  Local port:              1
+
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+WARNING: There was an error initializing an OpenFabrics device.
+
+  Local host:   rk02
+  Local device: mlx5_0
+--------------------------------------------------------------------------
+Rank       : 0
+Size       : 2
+Rank       : 1
+Size       : 2
+Grid Size       : 1024
+Duration of Sim : 100
+Time step dt    : 0.00431553
+Process geometry: 1 x 2
+
+Plot freq 0
+[rk02.kuacc.ku.edu.tr:40429] 1 more process has sent help message help-mpi-btl-openib.txt / ib port not selected
+[rk02.kuacc.ku.edu.tr:40429] Set MCA parameter "orte_base_help_aggregate" to 0 to see all help / error messages
+[rk02.kuacc.ku.edu.tr:40429] 1 more process has sent help message help-mpi-btl-openib.txt / error in device init
+Number of Iterations        : 23173
+Elapsed Time (sec)          : 37.1395
+Sustained Gflops Rate       : 18.3191
+Sustained Bandwidth (GB/sec): 20.9361
+
+Max: 0.979365 L2norm: 0.498186
+Parallel version with 4 processes
+--------------------------------------------------------------------------
+By default, for Open MPI 4.0 and later, infiniband ports on a device
+are not used by default.  The intent is to use UCX for these devices.
+You can override this policy by setting the btl_openib_allow_ib MCA parameter
+to true.
+
+  Local host:              rk02
+  Local adapter:           mlx5_0
+  Local port:              1
+
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+WARNING: There was an error initializing an OpenFabrics device.
+
+  Local host:   rk02
+  Local device: mlx5_0
+--------------------------------------------------------------------------
+Rank       : 3
+Size       : 4
+Rank       : 1
+Rank       : 0
+Size       : 4
+Rank       : 2
+Size       : 4
+Size       : 4
+Grid Size       : 1024
+Duration of Sim : 100
+Time step dt    : 0.00431553
+Process geometry: 1 x 4
+
+Plot freq 0
+[rk02.kuacc.ku.edu.tr:40530] 3 more processes have sent help message help-mpi-btl-openib.txt / ib port not selected
+[rk02.kuacc.ku.edu.tr:40530] Set MCA parameter "orte_base_help_aggregate" to 0 to see all help / error messages
+[rk02.kuacc.ku.edu.tr:40530] 3 more processes have sent help message help-mpi-btl-openib.txt / error in device init
+Number of Iterations        : 23173
+Elapsed Time (sec)          : 15.634
+Sustained Gflops Rate       : 43.5182
+Sustained Bandwidth (GB/sec): 49.7351
+
+Max: 0.979365 L2norm: 0.498186
+MPI1 + OMP16
+--------------------------------------------------------------------------
+By default, for Open MPI 4.0 and later, infiniband ports on a device
+are not used by default.  The intent is to use UCX for these devices.
+You can override this policy by setting the btl_openib_allow_ib MCA parameter
+to true.
+
+  Local host:              rk02
+  Local adapter:           mlx5_0
+  Local port:              1
+
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+WARNING: There was an error initializing an OpenFabrics device.
+
+  Local host:   rk02
+  Local device: mlx5_0
+--------------------------------------------------------------------------
+Rank       : 0
+Size       : 1
+Grid Size       : 1024
+Duration of Sim : 100
+Time step dt    : 0.00431553
+Process geometry: 1 x 1
+
+Plot freq 0
+Number of Iterations        : 23173
+Elapsed Time (sec)          : 68.2241
+Sustained Gflops Rate       : 9.97246
+Sustained Bandwidth (GB/sec): 11.3971
+
+Max: 0.979365 L2norm: 0.498186

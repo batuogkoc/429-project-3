@@ -1,0 +1,53 @@
+Compiling code
+make: Nothing to be done for `all'.
+Running Job...!
+===============================================================================
+Running compiled binary...
+/var/spool/slurm/d/job463587/slurm_script: line 39: serial: command not found
+Serial version...
+Grid Size       : 1024
+Duration of Sim : 100
+Time step dt    : 0.00431553
+Process geometry: 1 x 1
+
+Number of Iterations        : 23173
+Elapsed Time (sec)          : 85.5721
+Sustained Gflops Rate       : 7.95074
+Sustained Bandwidth (GB/sec): 9.08657
+
+Max: 0.979365 L2norm: 0.498186
+Parallel version with 4 processes
+--------------------------------------------------------------------------
+By default, for Open MPI 4.0 and later, infiniband ports on a device
+are not used by default.  The intent is to use UCX for these devices.
+You can override this policy by setting the btl_openib_allow_ib MCA parameter
+to true.
+
+  Local host:              rk01
+  Local adapter:           mlx4_0
+  Local port:              1
+
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+WARNING: There was an error initializing an OpenFabrics device.
+
+  Local host:   rk01
+  Local device: mlx4_0
+--------------------------------------------------------------------------
+Rank       : 1
+Size       : 4
+Rank       : 3
+Size       : 4
+Rank       : 0
+Size       : 4
+Rank       : 2
+Size       : 4
+Grid Size       : 1024
+Duration of Sim : 100
+Time step dt    : 0.00431553
+Process geometry: 1 x 4
+
+Plot freq 0
+[rk01.kuacc.ku.edu.tr:125237] 3 more processes have sent help message help-mpi-btl-openib.txt / ib port not selected
+[rk01.kuacc.ku.edu.tr:125237] Set MCA parameter "orte_base_help_aggregate" to 0 to see all help / error messages
+[rk01.kuacc.ku.edu.tr:125237] 3 more processes have sent help message help-mpi-btl-openib.txt / error in device init

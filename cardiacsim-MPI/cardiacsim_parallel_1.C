@@ -95,11 +95,11 @@ void simulate(double **E, double **E_prev, double **E_gather, double **R,
     int array_size_0 = m + 2;
     int array_size_1 = n + 2;
 
-    bool is_nortmost = (mpi_rank == 0);
+    bool is_northmost = (mpi_rank == 0);
     bool is_southmost = (mpi_rank == py - 1);
 
     int south_rank = is_southmost ? -1 : mpi_rank + 1;
-    int north_rank = is_nortmost ? -1 : mpi_rank - 1;
+    int north_rank = is_northmost ? -1 : mpi_rank - 1;
 
     /*
      * Copy data from boundary of the computational box
@@ -126,7 +126,7 @@ void simulate(double **E, double **E_prev, double **E_gather, double **R,
     int comm_wait_count = 0;
 
     // communicate boundaries
-    if (!is_nortmost)
+    if (!is_northmost)
     {
         //  northern communications of ego process
         //  north outgoing

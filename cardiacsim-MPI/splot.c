@@ -58,7 +58,6 @@ void splot(double **U, double T, int niter, int m, int n, bool to_png)
     for (i = 0; i < n; i++)
     {
       fprintf(gnu, "%d %d %f\n", i, j, U[j][i]);
-      // printf("%f", U[i][j]);
     }
     fprintf(gnu, "\n");
   }
