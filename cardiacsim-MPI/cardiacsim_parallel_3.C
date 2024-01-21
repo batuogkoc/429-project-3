@@ -100,41 +100,11 @@ extern "C"
 }
 void cmdLine(int argc, char *argv[], double &T, int &n, int &px, int &py, int &plot_freq, int &no_comm, int &num_threads);
 
-// void memcpy2d(double **src_array, double **dest_array, int src_x, int src_y, int dest_x, int dest_y, int size_x, int size_y, bool debug)
-// {
-//     for (int row_idx = 0; row_idx < size_y; row_idx++)
-//     {
-//         if (debug)
-//             cout << "test " << mpi_rank << " row: " << row_idx << " of: " << size_y << endl;
-
-//         memcpy(dest_array[dest_y + row_idx] + dest_x, src_array[src_y + row_idx] + src_x, sizeof(double) * size_x);
-//     }
-// }
 void memcpy2d(double **src_array, double **dest_array, int src_x, int src_y, int dest_x, int dest_y, int size_x, int size_y)
 {
-    // cout << "dest bounds" << dest_x << " " << dest_x + size_x - 1 << " " << dest_y << " " << dest_y + size_y - 1 << "\n";
-    // cout << "src bounds " << src_x << " " << src_x + size_x - 1 << " " << src_y << " " << src_y + size_y - 1 << "\n";
-
     for (int row_idx = 0; row_idx < size_y; row_idx++)
     {
-        for (int col_idx = 0; col_idx < size_x; col_idx++)
-        {
-            dest_array[dest_y + row_idx][dest_x + col_idx] = src_array[src_y + row_idx][src_x + col_idx];
-        }
-
-        // memcpy(&dest_array[dest_y + row_idx][dest_x], &src_array[src_y + row_idx][src_x], sizeof(double) * size_x);
-    }
-}
-void print_array(double **array, int rows, int cols)
-{
-    for (size_t i = 0; i < rows; i++)
-    {
-        cout << "rank" << mpi_rank << " r " << i << " ";
-        for (size_t j = 0; j < cols; j++)
-        {
-            cout << array[i][j] << " ";
-        }
-        cout << endl;
+        memcpy(&dest_array[dest_y + row_idx][dest_x], &src_array[src_y + row_idx][src_x], sizeof(double) * size_x);
     }
 }
 
@@ -167,13 +137,6 @@ void simulate(
     int east_rank = is_eastmost ? -1 : mpi_rank + 1;
     int west_rank = is_westmost ? -1 : mpi_rank - 1;
 
-    // getchar();
-    // if (mpi_rank == 2)
-    // {
-    //     cout << "rank " << mpi_rank << " y " << p_y_idx << endl;
-    //     cout << "sim start" << endl;
-    //     print_array(E_prev_local, computation_size_y + 2, computation_size_x + 2);
-    // }
     /*
      * Copy data from boundary of the computational box
      * to the padding region, set up for differencing
@@ -183,6 +146,7 @@ void simulate(
 
     if (is_westmost)
     {
+        // west wall
         for (j = 1; j <= computation_size_y; j++)
             E_prev_local[j][0] = E_prev_local[j][2];
     }
@@ -207,12 +171,6 @@ void simulate(
         for (i = 1; i <= computation_size_x; i++)
             E_prev_local[computation_size_y + 1][i] = E_prev_local[computation_size_y - 1][i];
     }
-    // if (mpi_rank == 2)
-    // {
-    //     cout << "after mirror" << endl;
-    //     print_array(E_prev_local, computation_size_y + 2, computation_size_x + 2);
-    // }
-    // MPI_Request requests[4];
 
     double west_incoming[computation_size_y];
     double east_incoming[computation_size_y];
@@ -290,12 +248,6 @@ void simulate(
     MPI_Waitall(comm_wait_count, requests, ns_stats);
     comm_wait_count = 0;
 
-    // if (mpi_rank == 2)
-    // {
-    //     cout << "ns comms done" << endl;
-    //     print_array(E_prev_local, computation_size_y + 2, computation_size_x + 2);
-    // }
-
     // Solve for the excitation, the PDE
     for (j = 1; j <= computation_size_y; j++)
     {
@@ -321,12 +273,6 @@ void simulate(
             R_local[j][i] = R_local[j][i] + dt * (epsilon + M1 * R_local[j][i] / (E_local[j][i] + M2)) * (-R_local[j][i] - kk * E_local[j][i] * (E_local[j][i] - b - 1));
     }
 
-    // if (mpi_rank == 2)
-    // {
-    //     cout << "after comp" << endl;
-    //     print_array(E_local, computation_size_y + 2, computation_size_x + 2);
-    // }
-
     if (gather)
     {
         int counts[py];
@@ -348,18 +294,7 @@ void simulate(
             }
         }
 
-        // // cout << "x: " << computation_size_x << " y: " << computation_size_y << endl;
         memcpy2d(E_local, E_gather_local, 1, 1, 0, 0, computation_size_x, computation_size_y);
-        // // cout << "Gather end " << mpi_rank << endl;
-        // double outgoing[computation_size_y][computation_size_x];
-
-        // for (int row = 0; row < computation_size_y; row++)
-        // {
-        //     for (int col = 0; col < computation_size_x; col++)
-        //     {
-        //         outgoing[row][col] = E_local[row + 1][col + 1];
-        //     }
-        // }
         MPI_Gatherv(&E_gather_local[0][0], computation_size_x * computation_size_y, MPI_DOUBLE, &E_gather[0][0], counts, displacements, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
         if (mpi_rank == 0)
@@ -374,18 +309,12 @@ void simulate(
                     int curr_square_size = curr_square_size_x * curr_square_size_y;
                     for (int curr_square_row_idx = 0; curr_square_row_idx < curr_square_size_y; curr_square_row_idx++)
                     {
-                        // for (int curr_square_col_idx = 0; curr_square_col_idx < curr_square_size_x; curr_square_col_idx++)
-                        // {
-                        //     E[row_idx * regular_computation_size_y + curr_square_row_idx + 1][col_idx * regular_computation_size_x + curr_square_col_idx + 1] = (&E_gather[0][0] + offset)[curr_square_row_idx * curr_square_size_x + curr_square_col_idx];
-                        // }
-
                         memcpy(&E[row_idx * regular_computation_size_y + curr_square_row_idx + 1][col_idx * regular_computation_size_x + 1], &E_gather[0][0] + offset + curr_square_row_idx * curr_square_size_x, curr_square_size_x * sizeof(double));
                     }
 
                     offset += curr_square_size;
                 }
             }
-            // extendBoundaries(E, m, n);
         }
     }
 }
@@ -507,15 +436,6 @@ int main(int argc, char **argv)
     double **E_local = alloc2D(computation_size_y + 2, computation_size_x + 2);
     double **E_prev_local = alloc2D(computation_size_y + 2, computation_size_x + 2);
     double **R_local = alloc2D(computation_size_y + 2, computation_size_x + 2);
-    for (int row = 0; row < computation_size_y + 2; row++)
-    {
-        for (int col = 0; col < computation_size_x + 2; col++)
-        {
-            E_local[row][col] = 0.0;
-            E_prev_local[row][col] = 0.0;
-            R_local[row][col] = 0.0;
-        }
-    }
 
     double **E_gather = alloc2D(m, n);
     double **E_gather_local = alloc2D(computation_size_y, computation_size_x);
@@ -548,8 +468,6 @@ int main(int argc, char **argv)
             gather = true;
         }
 
-        gather = true;
-
         simulate(E, E_gather, E_gather_local,
                  E_local, E_prev_local, R_local,
                  local_array_in_global_idx_x, local_array_in_global_idx_y,
@@ -566,47 +484,14 @@ int main(int argc, char **argv)
         E_local = E_prev_local;
         E_prev_local = tmp;
 
-        // if (mpi_rank == 0)
-        //     splot(E, t, niter, m + 2, n + 2, false);
-        // if (mpi_rank == 0)
-        // print_array(E_local, computation_size_y + 2, computation_size_x + 2);
-        if (gather)
-        {
-            // int i, j;
-            for (j = 1; j <= m; j++)
-                E[j][0] = E[j][2];
-            for (j = 1; j <= m; j++)
-                E[j][n + 1] = E[j][n - 1];
-
-            for (i = 1; i <= n; i++)
-                E[0][i] = E[2][i];
-            for (i = 1; i <= n; i++)
-                E[m + 1][i] = E[m - 1][i];
-        }
-        // getchar();
         if (plot_freq)
         {
 
             int k = (int)(t / plot_freq);
             if ((t - k * plot_freq) < dt)
             {
-
-                // splot(E_gather_local, t, niter, computation_size_y, computation_size_x, false);
-
                 if (mpi_rank == 0)
                 {
-                    // int i, j;
-                    // for (j = 1; j <= m; j++)
-                    //     E[j][0] = E[j][2];
-                    // for (j = 1; j <= m; j++)
-                    //     E[j][n + 1] = E[j][n - 1];
-
-                    // for (i = 1; i <= n; i++)
-                    //     E[0][i] = E[2][i];
-                    // for (i = 1; i <= n; i++)
-                    //     E[m + 1][i] = E[m - 1][i];
-                    // splot(E_prev_local, t, niter, computation_size_y + 2, computation_size_x + 2, false);
-                    // splot(E_gather_local, t, niter, computation_size_y, computation_size_x, false);
                     splot(E, t, niter, m + 2, n + 2, false);
                 }
             }
@@ -639,6 +524,12 @@ int main(int argc, char **argv)
     free(E);
     free(E_prev);
     free(R);
+
+    free(E_local);
+    free(E_prev_local);
+    free(R_local);
+    free(E_gather);
+    free(E_gather_local);
 
     MPI_Finalize();
     return 0;
