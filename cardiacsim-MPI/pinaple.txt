@@ -1,53 +1,45 @@
 Compiling code
-make: Nothing to be done for `all'.
+
+Compiling Source File -- cardiacsim_parallel_2.C
+---------------------
+mpic++  -DLINUX   -O3   -g -fopenmp -c cardiacsim_parallel_2.C
+cardiacsim_parallel_2.C: In function ‘void simulate(double**, double**, double**, double**, double, int, int, double, double, double, double, double, double, double, int, int, bool)’:
+cardiacsim_parallel_2.C:172:13: error: not enough for loops to collapse
+  172 |             int my_th = omp_get_thread_num();
+      |             ^~~
+make: *** [cardiacsim_parallel_2.o] Error 1
 Running Job...!
 ===============================================================================
 Running compiled binary...
-/var/spool/slurm/d/job463587/slurm_script: line 39: serial: command not found
-Serial version...
-Grid Size       : 1024
-Duration of Sim : 100
-Time step dt    : 0.00431553
-Process geometry: 1 x 1
-
-Number of Iterations        : 23173
-Elapsed Time (sec)          : 85.5721
-Sustained Gflops Rate       : 7.95074
-Sustained Bandwidth (GB/sec): 9.08657
-
-Max: 0.979365 L2norm: 0.498186
-Parallel version with 4 processes
+MPI1 + OMP16
 --------------------------------------------------------------------------
 By default, for Open MPI 4.0 and later, infiniband ports on a device
 are not used by default.  The intent is to use UCX for these devices.
 You can override this policy by setting the btl_openib_allow_ib MCA parameter
 to true.
 
-  Local host:              rk01
-  Local adapter:           mlx4_0
+  Local host:              rk02
+  Local adapter:           mlx5_0
   Local port:              1
 
 --------------------------------------------------------------------------
 --------------------------------------------------------------------------
 WARNING: There was an error initializing an OpenFabrics device.
 
-  Local host:   rk01
-  Local device: mlx4_0
+  Local host:   rk02
+  Local device: mlx5_0
 --------------------------------------------------------------------------
-Rank       : 1
-Size       : 4
-Rank       : 3
-Size       : 4
 Rank       : 0
-Size       : 4
-Rank       : 2
-Size       : 4
-Grid Size       : 1024
-Duration of Sim : 100
-Time step dt    : 0.00431553
-Process geometry: 1 x 4
+Size       : 1
+omp thread 0 of 1Grid Size       : 200
+Duration of Sim : 1000
+Time step dt    : 0.0515744
+Process geometry: 1 x 1
 
 Plot freq 0
-[rk01.kuacc.ku.edu.tr:125237] 3 more processes have sent help message help-mpi-btl-openib.txt / ib port not selected
-[rk01.kuacc.ku.edu.tr:125237] Set MCA parameter "orte_base_help_aggregate" to 0 to see all help / error messages
-[rk01.kuacc.ku.edu.tr:125237] 3 more processes have sent help message help-mpi-btl-openib.txt / error in device init
+Number of Iterations        : 19390
+Elapsed Time (sec)          : 1.81919
+Sustained Gflops Rate       : 11.9376
+Sustained Bandwidth (GB/sec): 13.643
+
+Max: 0.966244 L2norm: 0.646961

@@ -166,14 +166,11 @@ void simulate(double **E, double **E_prev, double **E_gather, double **R,
 // Solve for the excitation, the PDE
 #pragma omp parallel
     {
+        cout << "omp thread " << omp_get_thread_num() << " of " << omp_get_num_threads();
+
 #pragma omp for collapse(2)
         for (j = mpi_rank * regular_computation_size + 1; j <= mpi_rank * regular_computation_size + computation_size; j++)
         {
-            int my_th = omp_get_thread_num();
-            if (my_th != 0)
-            {
-                printf("My omp thread num: %d/7", my_th);
-            }
             for (i = 1; i <= n; i++)
             {
                 E[j][i] = E_prev[j][i] + alpha * (E_prev[j][i + 1] + E_prev[j][i - 1] - 4 * E_prev[j][i] + E_prev[j + 1][i] + E_prev[j - 1][i]);
@@ -219,24 +216,24 @@ void simulate(double **E, double **E_prev, double **E_gather, double **R,
         MPI_Gatherv(E[0] + displacements[mpi_rank], computation_size * array_size_0, MPI_DOUBLE, E_gather[0], counts, displacements, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     }
 }
-int deb(int cap)
-{
-    int da = cap;
-#pragma omp parallel
-    {
-        int meee = 999;
-        meee = omp_get_thread_num();
-        printf("My thread num BEFORE: %d\n", meee);
-    }
-    return da;
-}
+// int deb(int cap)
+// {
+//     int da = cap;
+// #pragma omp parallel
+//     {
+//         int meee = 999;
+//         meee = omp_get_thread_num();
+//         printf("My thread num BEFORE: %d\n", meee);
+//     }
+//     return da;
+// }
 
 // Main program
 int main(int argc, char **argv)
 {
-    int ____ = deb(5);
-    int totoal = omp_get_num_threads();
-    printf("TTL: %d", totoal);
+    // int ____ = deb(5);
+    // int totoal = omp_get_num_threads();
+    // printf("TTL: %d", totoal);
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);

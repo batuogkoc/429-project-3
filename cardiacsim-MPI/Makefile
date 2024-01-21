@@ -18,7 +18,7 @@ cardiacsim_parallel_3:	        $(PARALLEL_3_OBJECTS)
 	$(C++LINK) $(LDFLAGS) -o $@ $(PARALLEL_3_OBJECTS)  $(LDLIBS)
 
 cardiacsim_parallel_2:	        $(PARALLEL_2_OBJECTS) 
-	$(C++LINK) $(LDFLAGS) -fopenmp -o $@ $(PARALLEL_2_OBJECTS)  $(LDLIBS)
+	$(C++LINK) $(LDFLAGS) -o $@ $(PARALLEL_2_OBJECTS)  $(LDLIBS)
 
 cardiacsim_parallel_1:	        $(PARALLEL_1_OBJECTS) 
 	$(C++LINK) $(LDFLAGS) -o $@ $(PARALLEL_1_OBJECTS)  $(LDLIBS)

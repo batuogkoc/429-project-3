@@ -34,7 +34,7 @@ ARCH_FLAGS      = -DLINUX
 WARNINGS        = 
 # OPTIMIZATION    =  -O3 -ftree-vectorize 
 OPTIMIZATION    =  -O3 
-DEBUG          = -g
+DEBUG          = -g -fopenmp
 
 C++FLAGS        += $(INCLUDES) $(ARCH_FLAGS) $(WARNINGS) $(OPTIMIZATION) \
                   $(XTRAFLAGS) $(DEBUG)
