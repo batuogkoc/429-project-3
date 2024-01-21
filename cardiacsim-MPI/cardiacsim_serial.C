@@ -127,7 +127,18 @@ void simulate(double **E, double **E_prev, double **R,
       R[j][i] = R[j][i] + dt * (epsilon + M1 * R[j][i] / (E[j][i] + M2)) * (-R[j][i] - kk * E[j][i] * (E[j][i] - b - 1));
   }
 }
-
+void print_array(double **array, int rows, int cols)
+{
+  for (size_t i = 0; i < rows; i++)
+  {
+    cout << " r " << i << " ";
+    for (size_t j = 0; j < cols; j++)
+    {
+      cout << array[i][j] << " ";
+    }
+    cout << endl;
+  }
+}
 // Main program
 int main(int argc, char **argv)
 {
@@ -206,6 +217,9 @@ int main(int argc, char **argv)
 
     t += dt;
     niter++;
+
+    print_array(E_prev, m + 2, n + 2);
+    getchar();
 
     simulate(E, E_prev, R, alpha, n, m, kk, dt, a, epsilon, M1, M2, b);
 

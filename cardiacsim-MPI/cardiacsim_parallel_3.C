@@ -21,6 +21,7 @@ using namespace std;
 int mpi_rank;
 int mpi_size;
 MPI_Status stat;
+MPI_Request requests[4];
 
 // Utilities
 //
@@ -57,7 +58,7 @@ double **alloc2D(int m, int n)
     return (E);
 }
 
-double **extendBoundaries(double **E_prev, int m, int n)
+void extendBoundaries(double **E_prev, int m, int n)
 {
     int i, j;
     for (j = 1; j <= m; j++)
@@ -124,6 +125,18 @@ void memcpy2d(double **src_array, double **dest_array, int src_x, int src_y, int
         // memcpy(&dest_array[dest_y + row_idx][dest_x], &src_array[src_y + row_idx][src_x], sizeof(double) * size_x);
     }
 }
+void print_array(double **array, int rows, int cols)
+{
+    for (size_t i = 0; i < rows; i++)
+    {
+        cout << "rank" << mpi_rank << " r " << i << " ";
+        for (size_t j = 0; j < cols; j++)
+        {
+            cout << array[i][j] << " ";
+        }
+        cout << endl;
+    }
+}
 
 void simulate(
     double **E, double **E_gather, double **E_gather_local,
@@ -135,7 +148,7 @@ void simulate(
     const int computation_size_x, const int computation_size_y,
     const double alpha, const int n, const int m, const double kk,
     const double dt, const double a, const double epsilon,
-    const double M1, const double M2, const double b, const int px, const int py, bool gather)
+    const double M1, const double M2, const double b, const int px, const int py, bool gather, int n_iter)
 {
     int i, j;
 
@@ -154,12 +167,20 @@ void simulate(
     int east_rank = is_eastmost ? -1 : mpi_rank + 1;
     int west_rank = is_westmost ? -1 : mpi_rank - 1;
 
+    // getchar();
+    // if (mpi_rank == 2)
+    // {
+    //     cout << "rank " << mpi_rank << " y " << p_y_idx << endl;
+    //     cout << "sim start" << endl;
+    //     print_array(E_prev_local, computation_size_y + 2, computation_size_x + 2);
+    // }
     /*
      * Copy data from boundary of the computational box
      * to the padding region, set up for differencing
      * on the boundary of the computational box
      * Using mirror boundaries
      */
+
     if (is_westmost)
     {
         for (j = 1; j <= computation_size_y; j++)
@@ -186,10 +207,12 @@ void simulate(
         for (i = 1; i <= computation_size_x; i++)
             E_prev_local[computation_size_y + 1][i] = E_prev_local[computation_size_y - 1][i];
     }
-
-    MPI_Request requests[4];
-    MPI_Status stats[4];
-    int comm_wait_count = 0;
+    // if (mpi_rank == 2)
+    // {
+    //     cout << "after mirror" << endl;
+    //     print_array(E_prev_local, computation_size_y + 2, computation_size_x + 2);
+    // }
+    // MPI_Request requests[4];
 
     double west_incoming[computation_size_y];
     double east_incoming[computation_size_y];
@@ -202,7 +225,8 @@ void simulate(
         west_outgoing[row_idx] = E_prev_local[row_idx + 1][1];
         east_outgoing[row_idx] = E_prev_local[row_idx + 1][computation_size_x];
     }
-
+    MPI_Status stats[4];
+    int comm_wait_count = 0;
     // communicate boundaries east and west
     if (!is_westmost)
     {
@@ -240,6 +264,8 @@ void simulate(
         }
     }
 
+    MPI_Status ns_stats[4];
+    comm_wait_count = 0;
     // communicate boundaries north and south
     if (!is_northmost)
     {
@@ -260,6 +286,15 @@ void simulate(
         MPI_Irecv(&E_prev_local[computation_size_y + 1][0], computation_size_x + 2, MPI_DOUBLE, south_rank, 0, MPI_COMM_WORLD, &requests[comm_wait_count]);
         comm_wait_count++;
     }
+
+    MPI_Waitall(comm_wait_count, requests, ns_stats);
+    comm_wait_count = 0;
+
+    // if (mpi_rank == 2)
+    // {
+    //     cout << "ns comms done" << endl;
+    //     print_array(E_prev_local, computation_size_y + 2, computation_size_x + 2);
+    // }
 
     // Solve for the excitation, the PDE
     for (j = 1; j <= computation_size_y; j++)
@@ -285,6 +320,12 @@ void simulate(
         for (i = 1; i <= computation_size_x; i++)
             R_local[j][i] = R_local[j][i] + dt * (epsilon + M1 * R_local[j][i] / (E_local[j][i] + M2)) * (-R_local[j][i] - kk * E_local[j][i] * (E_local[j][i] - b - 1));
     }
+
+    // if (mpi_rank == 2)
+    // {
+    //     cout << "after comp" << endl;
+    //     print_array(E_local, computation_size_y + 2, computation_size_x + 2);
+    // }
 
     if (gather)
     {
@@ -346,18 +387,6 @@ void simulate(
             }
             // extendBoundaries(E, m, n);
         }
-    }
-}
-void print_array(double **array, int rows, int cols)
-{
-    for (size_t i = 0; i < rows; i++)
-    {
-        cout << "rank" << mpi_rank << " r " << i << " ";
-        for (size_t j = 0; j < cols; j++)
-        {
-            cout << array[i][j] << " ";
-        }
-        cout << endl;
     }
 }
 
@@ -519,6 +548,8 @@ int main(int argc, char **argv)
             gather = true;
         }
 
+        gather = true;
+
         simulate(E, E_gather, E_gather_local,
                  E_local, E_prev_local, R_local,
                  local_array_in_global_idx_x, local_array_in_global_idx_y,
@@ -528,7 +559,7 @@ int main(int argc, char **argv)
                  computation_size_x, computation_size_y,
                  alpha, n, m, kk,
                  dt, a, epsilon,
-                 M1, M2, b, px, py, gather);
+                 M1, M2, b, px, py, gather, niter);
 
         // swap current E_local with  E_prev_local
         double **tmp = E_local;
