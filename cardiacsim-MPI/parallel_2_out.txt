@@ -1,0 +1,37 @@
+Compiling code
+make: Nothing to be done for `all'.
+Running Job...!
+===============================================================================
+Running compiled binary...
+MPI1 + OMP16
+--------------------------------------------------------------------------
+By default, for Open MPI 4.0 and later, infiniband ports on a device
+are not used by default.  The intent is to use UCX for these devices.
+You can override this policy by setting the btl_openib_allow_ib MCA parameter
+to true.
+
+  Local host:              it02
+  Local adapter:           mlx5_0
+  Local port:              1
+
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+WARNING: There was an error initializing an OpenFabrics device.
+
+  Local host:   it02
+  Local device: mlx5_0
+--------------------------------------------------------------------------
+Rank       : 0
+Size       : 1
+Grid Size       : 1024
+Duration of Sim : 100
+Time step dt    : 0.00431553
+Process geometry: 1 x 1
+
+Plot freq 0
+Number of Iterations        : 23173
+Elapsed Time (sec)          : 86.4853
+Sustained Gflops Rate       : 7.8668
+Sustained Bandwidth (GB/sec): 8.99062
+
+Max: 0.979365 L2norm: 0.498186

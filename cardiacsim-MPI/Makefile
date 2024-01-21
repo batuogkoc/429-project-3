@@ -1,6 +1,6 @@
 include ./arch.gnu
 # OPTIMIZATION = -fast
-# OPTIMIZATION = -O3
+# OPTIMIZATION = -O3 -fopenmp
 # DEBUG += -g
 
 all: cardiacsim_serial cardiacsim_parallel_1 cardiacsim_parallel_2 cardiacsim_parallel_3
@@ -18,7 +18,7 @@ cardiacsim_parallel_3:	        $(PARALLEL_3_OBJECTS)
 	$(C++LINK) $(LDFLAGS) -o $@ $(PARALLEL_3_OBJECTS)  $(LDLIBS)
 
 cardiacsim_parallel_2:	        $(PARALLEL_2_OBJECTS) 
-	$(C++LINK) $(LDFLAGS) -o $@ $(PARALLEL_2_OBJECTS)  $(LDLIBS)
+	$(C++LINK) $(LDFLAGS) -fopenmp -o $@ $(PARALLEL_2_OBJECTS)  $(LDLIBS)
 
 cardiacsim_parallel_1:	        $(PARALLEL_1_OBJECTS) 
 	$(C++LINK) $(LDFLAGS) -o $@ $(PARALLEL_1_OBJECTS)  $(LDLIBS)

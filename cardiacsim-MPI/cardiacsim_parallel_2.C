@@ -91,6 +91,7 @@ void simulate(double **E, double **E_prev, double **E_gather, double **R,
               const double dt, const double a, const double epsilon,
               const double M1, const double M2, const double b, const int px, const int py, bool gather)
 {
+
     int i, j;
 
     int array_size_0 = m + 2;
@@ -162,29 +163,40 @@ void simulate(double **E, double **E_prev, double **E_gather, double **R,
         computation_size = last_cell_computation_size;
     }
 
-    // Solve for the excitation, the PDE
-    for (j = mpi_rank * regular_computation_size + 1; j <= mpi_rank * regular_computation_size + computation_size; j++)
+// Solve for the excitation, the PDE
+#pragma omp parallel
     {
-        for (i = 1; i <= n; i++)
+#pragma omp for collapse(2)
+        for (j = mpi_rank * regular_computation_size + 1; j <= mpi_rank * regular_computation_size + computation_size; j++)
         {
-            E[j][i] = E_prev[j][i] + alpha * (E_prev[j][i + 1] + E_prev[j][i - 1] - 4 * E_prev[j][i] + E_prev[j + 1][i] + E_prev[j - 1][i]);
+            int my_th = omp_get_thread_num();
+            if (my_th != 0)
+            {
+                printf("My omp thread num: %d/7", my_th);
+            }
+            for (i = 1; i <= n; i++)
+            {
+                E[j][i] = E_prev[j][i] + alpha * (E_prev[j][i + 1] + E_prev[j][i - 1] - 4 * E_prev[j][i] + E_prev[j + 1][i] + E_prev[j - 1][i]);
+            }
         }
-    }
 
-    /*
-     * Solve the ODE, advancing excitation and recovery to the
-     *     next timtestep
-     */
-    for (j = mpi_rank * regular_computation_size + 1; j <= mpi_rank * regular_computation_size + computation_size; j++)
-    {
-        for (i = 1; i <= n; i++)
-            E[j][i] = E[j][i] - dt * (kk * E[j][i] * (E[j][i] - a) * (E[j][i] - 1) + E[j][i] * R[j][i]);
-    }
+        /*
+         * Solve the ODE, advancing excitation and recovery to the
+         *     next timtestep
+         */
+#pragma omp for collapse(2)
+        for (j = mpi_rank * regular_computation_size + 1; j <= mpi_rank * regular_computation_size + computation_size; j++)
+        {
+            for (i = 1; i <= n; i++)
+                E[j][i] = E[j][i] - dt * (kk * E[j][i] * (E[j][i] - a) * (E[j][i] - 1) + E[j][i] * R[j][i]);
+        }
 
-    for (j = mpi_rank * regular_computation_size + 1; j <= mpi_rank * regular_computation_size + computation_size; j++)
-    {
-        for (i = 1; i <= n; i++)
-            R[j][i] = R[j][i] + dt * (epsilon + M1 * R[j][i] / (E[j][i] + M2)) * (-R[j][i] - kk * E[j][i] * (E[j][i] - b - 1));
+#pragma omp for collapse(2)
+        for (j = mpi_rank * regular_computation_size + 1; j <= mpi_rank * regular_computation_size + computation_size; j++)
+        {
+            for (i = 1; i <= n; i++)
+                R[j][i] = R[j][i] + dt * (epsilon + M1 * R[j][i] / (E[j][i] + M2)) * (-R[j][i] - kk * E[j][i] * (E[j][i] - b - 1));
+        }
     }
     if (gather)
     {
@@ -207,15 +219,30 @@ void simulate(double **E, double **E_prev, double **E_gather, double **R,
         MPI_Gatherv(E[0] + displacements[mpi_rank], computation_size * array_size_0, MPI_DOUBLE, E_gather[0], counts, displacements, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     }
 }
+int deb(int cap)
+{
+    int da = cap;
+#pragma omp parallel
+    {
+        int meee = 999;
+        meee = omp_get_thread_num();
+        printf("My thread num BEFORE: %d\n", meee);
+    }
+    return da;
+}
 
 // Main program
 int main(int argc, char **argv)
 {
+    int ____ = deb(5);
+    int totoal = omp_get_num_threads();
+    printf("TTL: %d", totoal);
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
     cout << "Rank       : " << mpi_rank << endl;
     cout << "Size       : " << mpi_size << endl;
+
     /*
      *  Solution arrays
      *   E is the "Excitation" variable, a voltage
