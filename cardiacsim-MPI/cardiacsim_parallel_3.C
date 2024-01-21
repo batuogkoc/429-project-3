@@ -81,15 +81,25 @@ double stats(double **E, int m, int n, double *_mx)
 // External functions
 extern "C"
 {
-    void splot(double **E, double T, int niter, int m, int n);
+    void splot(double **E, double T, int niter, int m, int n, bool to_png);
 }
 void cmdLine(int argc, char *argv[], double &T, int &n, int &px, int &py, int &plot_freq, int &no_comm, int &num_threads);
 
+void memcpy2d(double **src_array, double **dest_array, int src_x, int src_y, int dest_x, int dest_y, int size_x, int size_y, bool debug)
+{
+    for (int row_idx = 0; row_idx < size_y; row_idx++)
+    {
+        if (debug)
+            cout << "test " << mpi_rank << " row: " << row_idx << " of: " << size_y << endl;
+
+        memcpy(dest_array[dest_y + row_idx] + dest_x, src_array[src_y + row_idx] + src_x, sizeof(double) * size_x);
+    }
+}
 void memcpy2d(double **src_array, double **dest_array, int src_x, int src_y, int dest_x, int dest_y, int size_x, int size_y)
 {
     for (int row_idx = 0; row_idx < size_y; row_idx++)
     {
-        memcpy(dest_array[dest_y + row_idx] + dest_x, src_array[src_y + row_idx] + src_x, sizeof(double) * size_x);
+        memcpy(&dest_array[dest_y + row_idx][dest_x], &src_array[src_y + row_idx][src_x], sizeof(double) * size_x);
     }
 }
 
@@ -138,7 +148,7 @@ void simulate(
     {
         // east wall
         for (j = 1; j <= computation_size_y; j++)
-            E_prev_local[j][n + 1] = E_prev_local[j][n - 1];
+            E_prev_local[j][computation_size_x + 1] = E_prev_local[j][computation_size_x - 1];
     }
 
     if (is_northmost)
@@ -151,8 +161,8 @@ void simulate(
     if (is_southmost)
     {
         // south wall
-        for (i = 1; i <= n; i++)
-            E_prev_local[m + 1][i] = E_prev_local[m - 1][i];
+        for (i = 1; i <= computation_size_x; i++)
+            E_prev_local[computation_size_y + 1][i] = E_prev_local[computation_size_y - 1][i];
     }
 
     // cout << "Regular: " << regular_computation_size << " last: " << last_cell_computation_size << " size: " << m << endl;
@@ -165,7 +175,6 @@ void simulate(
 
     double west_outgoing[computation_size_y];
     double east_outgoing[computation_size_y];
-
     // pack west and east outgoing
     for (size_t row_idx = 0; row_idx < computation_size_y; row_idx++)
     {
@@ -195,7 +204,6 @@ void simulate(
 
     MPI_Waitall(comm_wait_count, requests, stats);
     comm_wait_count = 0;
-    cout << "Finished w-e comms: " << mpi_rank << endl;
     // unpack west and east incoming
     for (size_t row_idx = 0; row_idx < computation_size_y; row_idx++)
     {
@@ -271,8 +279,12 @@ void simulate(
                 idx++;
             }
         }
-        memcpy2d(E_local, E_gather_local, 1, 1, 0, 0, computation_size_x, computation_size_y);
-        MPI_Gatherv(E_gather_local[0], computation_size_x * computation_size_y, MPI_DOUBLE, E_gather[0], counts, displacements, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        cout << "x: " << computation_size_x << " y: " << computation_size_y << endl;
+        memcpy2d(E_local, E_gather_local, 1, 1, 0, 0, computation_size_x, computation_size_y, true);
+        cout << "Gather end " << mpi_rank << endl;
+
+        MPI_Gatherv(&E_gather_local[0][0], computation_size_x * computation_size_y, MPI_DOUBLE, &E_gather[0][0], counts, displacements, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
         if (mpi_rank == 0)
         {
             int offset = 0;
@@ -331,6 +343,7 @@ int main(int argc, char **argv)
     E = alloc2D(m + 2, n + 2);
     E_prev = alloc2D(m + 2, n + 2);
     R = alloc2D(m + 2, n + 2);
+
     int i, j;
     // Initialization
     for (j = 1; j <= m; j++)
@@ -409,17 +422,17 @@ int main(int argc, char **argv)
     double **E_gather = alloc2D(m, n);
     double **E_gather_local = alloc2D(computation_size_y, computation_size_x);
 
-    if (E_local == NULL || E_prev_local == NULL || R_local == NULL)
-    {
-        return 1;
-    }
-
     int local_array_in_global_idx_x = p_x_idx * regular_computation_size_x;
     int local_array_in_global_idx_y = p_y_idx * regular_computation_size_y;
 
     memcpy2d(E_prev, E_prev_local, local_array_in_global_idx_x, local_array_in_global_idx_y, 0, 0, computation_size_x + 2, computation_size_y + 2);
     memcpy2d(R, R_local, local_array_in_global_idx_x, local_array_in_global_idx_y, 0, 0, computation_size_x + 2, computation_size_y + 2);
-
+    if (mpi_rank == 0)
+    {
+        splot(R_local, t, niter, computation_size_y + 2, computation_size_x + 2, false);
+    }
+    while (true)
+        ;
     while (t < T)
     {
 
@@ -451,7 +464,7 @@ int main(int argc, char **argv)
                  computation_size_x, computation_size_y,
                  alpha, n, m, kk,
                  dt, a, epsilon,
-                 M1, M2, b, px, py, gather);
+                 M1, M2, b, px, py, false);
 
         // swap current E_local with  E_prev_local
         double **tmp = E_local;
@@ -465,7 +478,16 @@ int main(int argc, char **argv)
             {
                 if (mpi_rank == 0)
                 {
-                    splot(E, t, niter, m + 2, n + 2);
+                    cout << "plotting" << endl;
+                    splot(E, t, niter, m + 2, n + 2, false);
+                    // for (size_t row = 0; row < computation_size_y + 2; row++)
+                    // {
+                    //     for (size_t col = 0; col < computation_size_x + 2; col++)
+                    //     {
+                    //         cout << E_prev_local[row][col] << " ";
+                    //     }
+                    //     cout << endl;
+                    // }
                 }
             }
         }

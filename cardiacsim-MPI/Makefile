@@ -15,7 +15,7 @@ PARALLEL_3_OBJECTS = cardiacsim_parallel_3.o $(SHARED_OBJECTS)
 
 
 cardiacsim_parallel_3:	        $(PARALLEL_3_OBJECTS) 
-	$(C++LINK) $(LDFLAGS) -o $@ $(PARALLEL_3_OBJECTS)  $(LDLIBS)
+	$(C++LINK) -g $(LDFLAGS) -o $@ $(PARALLEL_3_OBJECTS)  $(LDLIBS)
 
 cardiacsim_parallel_2:	        $(PARALLEL_2_OBJECTS) 
 	$(C++LINK) $(LDFLAGS) -o $@ $(PARALLEL_2_OBJECTS)  $(LDLIBS)

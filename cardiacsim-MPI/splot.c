@@ -4,6 +4,7 @@
  *************************************************************/
 
 #include <stdio.h>
+#include <stdbool.h>
 
 /* Function to plot the 2D array
  * 'gnuplot' is instantiated via a pipe and
@@ -12,11 +13,12 @@
 
 FILE *gnu = NULL;
 
-void splot(double **U, double T, int niter, int m, int n)
+void splot(double **U, double T, int niter, int m, int n, bool to_png)
 {
   int i, j;
   if (gnu == NULL)
     gnu = popen("gnuplot", "w");
+  // gnu = fopen("plot.txt", "w");
 
   char filename[256];
   sprintf(filename, "plot_%d.png", niter);
@@ -33,9 +35,12 @@ void splot(double **U, double T, int niter, int m, int n)
     }
   }
 
-  // outputting the plot to png
-  fprintf(gnu, "set terminal png\n");
-  fprintf(gnu, "set output '%s'\n", filename);
+  if (to_png)
+  {
+    // outputting the plot to png
+    fprintf(gnu, "set terminal png\n");
+    fprintf(gnu, "set output '%s'\n", filename);
+  }
 
   fprintf(gnu, "set title \"T = %f [niter = %d]\"\n", T, niter);
   fprintf(gnu, "set size square\n");
@@ -52,11 +57,13 @@ void splot(double **U, double T, int niter, int m, int n)
   {
     for (i = 0; i < n; i++)
     {
-      fprintf(gnu, "%d %d %f\n", i, j, U[i][j]);
+      fprintf(gnu, "%d %d %f\n", i, j, U[j][i]);
+      // printf("%f", U[i][j]);
     }
     fprintf(gnu, "\n");
   }
   fprintf(gnu, "e\n");
   fflush(gnu);
+  // fclose(gnu);
   return;
 }

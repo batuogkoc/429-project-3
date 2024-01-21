@@ -26,6 +26,9 @@
 
 echo "Compiling code"
 make
+echo "Core dump config"
+ulimit -S -c 0
+ulimit -a 
 echo "Running Job...!"
 echo "==============================================================================="
 echo "Running compiled binary..."
@@ -33,7 +36,9 @@ echo "Running compiled binary..."
 
 #parallel version test
 echo "Parallel version test"
-mpirun -np 2 ./cardiacsim_parallel_3 -n 1024 -t 100 -y 2 -x 1
+mpirun -np 2 ./cardiacsim_parallel_3 -n 100 -t 100 -y 2 -x 1 -p 1
+# mpirun -np 2 ./cardiacsim_parallel_1 -n 100 -t 100 -y 2 -p 1
+
 
 #serial version
 # echo "Serial version..."

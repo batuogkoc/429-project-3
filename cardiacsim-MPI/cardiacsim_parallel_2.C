@@ -82,7 +82,7 @@ double stats(double **E, int m, int n, double *_mx)
 // External functions
 extern "C"
 {
-    void splot(double **E, double T, int niter, int m, int n);
+    void splot(double **E, double T, int niter, int m, int n, bool to_png);
 }
 void cmdLine(int argc, char *argv[], double &T, int &n, int &px, int &py, int &plot_freq, int &no_comm, int &num_threads);
 
@@ -326,7 +326,7 @@ int main(int argc, char **argv)
             {
                 if (mpi_rank == 0)
                 {
-                    splot(E_gather, t, niter, m + 2, n + 2);
+                    splot(E_gather, t, niter, m + 2, n + 2, false);
                 }
             }
         }
